@@ -1694,7 +1694,8 @@
     const headers = ['Date','Technician','Job Start Time','Job End Time','Region','Provider','Vehicle','Vehicle Name','Vehicle MPG','Gas Price Per Gallon','Fuel Gallons','Estimated Fuel Cost','Year','Make','Model','Service','Service Price','Call Total','Payment Method','Mileage Start','Mileage End','Miles Driven','Customer Name','Customer Phone','Customer Email','Notes'];
     const rows = [];
     visible.forEach(e => {
-      (e.services || []).forEach(sv => {
+      (e.services || []).forEach((sv, svIdx) => {
+        const firstRow = svIdx === 0; // ticket-level numbers only on a call's first row so SUM() never double-counts
         const isDiscount = sv.service === 'Discount';
         const serviceLabel = isDiscount
           ? `${sv.discountReason || 'Discount'} (${sv.discountType === 'percent' ? sv.discountValue + '% off' : fmtMoney(sv.discountValue) + ' off'})`
@@ -1709,19 +1710,19 @@
           e.vehicle,
           e.vehicleNickname || '',
           e.vehicleMpg != null ? e.vehicleMpg : '',
-          e.gasPricePerGallon != null ? e.gasPricePerGallon.toFixed(2) : '',
-          e.fuelGallons != null ? e.fuelGallons.toFixed(2) : '',
-          e.fuelCostEstimate != null ? e.fuelCostEstimate.toFixed(2) : '',
+          (firstRow && e.gasPricePerGallon != null) ? e.gasPricePerGallon.toFixed(2) : '',
+          (firstRow && e.fuelGallons != null) ? e.fuelGallons.toFixed(2) : '',
+          (firstRow && e.fuelCostEstimate != null) ? e.fuelCostEstimate.toFixed(2) : '',
           e.vehicleYear || '',
           e.vehicleMake || '',
           e.vehicleModel || '',
           serviceLabel,
           sv.price.toFixed(2),
-          e.totalPrice.toFixed(2),
+          firstRow ? e.totalPrice.toFixed(2) : '',
           e.paymentMethod || '',
-          e.mileageStart,
-          e.mileageEnd,
-          e.miles ?? '',
+          firstRow ? e.mileageStart : '',
+          firstRow ? e.mileageEnd : '',
+          firstRow ? (e.miles ?? '') : '',
           e.customer,
           e.phone || '',
           e.email,
