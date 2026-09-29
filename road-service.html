@@ -1009,6 +1009,7 @@
         <button type="button" class="discount-reason-btn active" data-reason="Student" onclick="setDiscountReason('${rowId}','Student')">Student</button>
         <button type="button" class="discount-reason-btn" data-reason="Military" onclick="setDiscountReason('${rowId}','Military')">Military</button>
         <button type="button" class="discount-reason-btn" data-reason="AAA" onclick="setDiscountReason('${rowId}','AAA')">AAA</button>
+        <button type="button" class="discount-reason-btn" data-reason="Warranty" onclick="setDiscountReason('${rowId}','Warranty')">Warranty</button>
         <button type="button" class="discount-reason-btn" data-reason="Other" onclick="setDiscountReason('${rowId}','Other')">Other</button>
       </div>
       <input class="discount-reason-custom hidden" placeholder="Discount label (e.g. Employee, Coupon)">
@@ -1356,7 +1357,7 @@
     select.value = sv.service || '';
 
     if(sv.service === 'Discount'){
-      const presetReasons = ['Student','Military','AAA'];
+      const presetReasons = ['Student','Military','AAA','Warranty'];
       const reason = presetReasons.includes(sv.discountReason) ? sv.discountReason : 'Other';
       row.dataset.discountType = sv.discountType || 'flat';
       row.dataset.discountReason = reason;
