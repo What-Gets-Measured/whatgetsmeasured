@@ -55,7 +55,7 @@
     background:#fff; color:var(--muted); cursor:pointer;
   }
   .prog{height:8px; border-radius:5px; background:#F1E6EC; overflow:hidden; margin:8px 0 4px;}
-  .prog > div{height:100%; background:var(--blue-light);}
+  .prog > div{height:100%; background:#3A9A5B;}
   .prog.warn > div{background:var(--gold);}
   .prog.due > div{background:var(--danger);}
   .alert-banner{font-size:13px; font-weight:600; padding:9px 12px; border-radius:8px; margin-bottom:10px; background:#FFF4E0; color:#8A5A00; border:1px solid #F3DDB0;}
@@ -70,6 +70,13 @@
   .invoice-edit input{font-size:13px; padding:6px 8px; margin-bottom:6px;}
   .net-neg{color:var(--danger) !important;}
   .tab.active{background:var(--blue); color:#fff; border-color:var(--blue); box-shadow:0 1px 3px rgba(0,0,0,0.15);}
+  /* Maintenance tab takes the color of the worst equipment status (green / yellow / red) */
+  .tab.st-ok{border-color:#3A9A5B; color:#2C8A4B; font-weight:700;}
+  .tab.st-warn{border-color:#E0A800; color:#B07A00; font-weight:700;}
+  .tab.st-due{border-color:#C0392B; color:#B02A2A; font-weight:700;}
+  .tab.active.st-ok{color:#fff; box-shadow:inset 0 -4px 0 #3A9A5B;}
+  .tab.active.st-warn{color:#fff; box-shadow:inset 0 -4px 0 #E0A800;}
+  .tab.active.st-due{color:#fff; box-shadow:inset 0 -4px 0 #E5483A;}
 
   .content{padding:12px 16px 100px;}
   .hidden{display:none !important;}
@@ -233,13 +240,13 @@
 <div class="tabs">
   <button class="tab active" data-view="log" onclick="setView('log')">Log</button>
   <button class="tab" data-view="new" onclick="setView('new')">+ New Ticket</button>
+  <button class="tab" data-view="allstatecalc" onclick="setView('allstatecalc')">Allstate Calc</button>
+  <button class="tab" data-view="summary" onclick="setView('summary')">Summary</button>
   <button class="tab" data-view="tools" onclick="setView('tools')">Tools</button>
   <button class="tab" data-view="expenses" onclick="setView('expenses')">Expenses</button>
   <button class="tab" data-view="maint" onclick="setView('maint')">Maintenance</button>
   <button class="tab" data-view="inventory" onclick="setView('inventory')">Inventory</button>
   <button class="tab hidden" id="listsTab" data-view="lists" onclick="setView('lists')">Lists</button>
-  <button class="tab" data-view="summary" onclick="setView('summary')">Summary</button>
-  <button class="tab" data-view="allstatecalc" onclick="setView('allstatecalc')">Allstate Calc</button>
 </div>
 
 <div class="content">
@@ -569,7 +576,7 @@
     <div class="card">
       <div class="section-label">Equipment Service Reminders</div>
       <div style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">
-        Counts your logged jobs automatically and warns you on the Log tab when a piece of equipment is nearly due for service.
+        Counts your logged jobs automatically. Green is under 60% of the way to service, yellow is 60%+, red is 90%+. The Maintenance tab takes the color of the worst item.
       </div>
       <div id="equipList"></div>
       <div id="equipPresets" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;"></div>
@@ -981,6 +988,7 @@
     sortTools();
     loadRecordsLocal();
     loadOptionsLocal();
+    updateMaintTabColor();
   }
 
   function saveLocal(){
@@ -1231,6 +1239,7 @@
       renderInventoryList();
       syncWithSheet().then(() => { renderInventoryList(); });
     }
+    updateMaintTabColor(); // day-based limits move with the calendar, so refresh on every tab change
     if(v === 'lists'){
       renderListsView();
       syncWithSheet().then(() => { renderListsView(); });
@@ -2690,7 +2699,7 @@
     } catch(e){ records = []; }
     sortRecords();
   }
-  function saveRecordsLocal(){ localStorage.setItem(RECORDS_KEY, JSON.stringify(records)); }
+  function saveRecordsLocal(){ localStorage.setItem(RECORDS_KEY, JSON.stringify(records)); updateMaintTabColor(); }
   function sortRecords(){ records.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)); }
 
   function getRecPendingDeletes(){
@@ -2986,17 +2995,30 @@
     });
     return n;
   }
+  // Colors the Maintenance tab by the worst status across all equipment (neutral if none set up yet).
+  function updateMaintTabColor(){
+    const tab = document.querySelector('.tab[data-view="maint"]');
+    if(!tab) return;
+    tab.classList.remove('st-ok', 'st-warn', 'st-due');
+    if(!currentUser) return;
+    const list = myRecords('equipment').filter(r => (r.limit || 0) > 0 || (r.limitDays || 0) > 0);
+    if(!list.length) return;
+    const states = list.map(r => equipStatus(r).state);
+    tab.classList.add(states.includes('due') ? 'st-due' : (states.includes('warn') ? 'st-warn' : 'st-ok'));
+  }
   function equipStatus(rec){
     const n = equipCount(rec);
     const limit = rec.limit || 0;
     const limitDays = rec.limitDays || 0;
     // Days run from the "counting since" date, or from when the reminder was created if there isn't one.
+    // Whole calendar days (not 24-hour blocks), so the count doesn't depend on what time of day it is.
     const base = new Date(rec.since ? rec.since + 'T12:00:00' : (rec.date || Date.now()));
-    const days = isNaN(base) ? 0 : Math.max(0, Math.floor((Date.now() - base.getTime()) / 86400000));
+    const startOf = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = isNaN(base) ? 0 : Math.max(0, Math.round((startOf(new Date()) - startOf(base)) / 86400000));
     const pctJobs = limit > 0 ? n / limit : 0;
     const pctDays = limitDays > 0 ? days / limitDays : 0;
     const pct = Math.max(pctJobs, pctDays);
-    return { n: n, limit: limit, days: days, limitDays: limitDays, pct: pct, state: pct >= 1 ? 'due' : (pct >= 0.9 ? 'warn' : 'ok') };
+    return { n: n, limit: limit, days: days, limitDays: limitDays, pct: pct, state: pct >= 0.9 ? 'due' : (pct >= 0.6 ? 'warn' : 'ok') };
   }
   function renderEquipment(){
     const list = document.getElementById('equipList');
@@ -3008,11 +3030,11 @@
       return `<div style="padding:10px 0; border-bottom:1px solid #F1E6EC;">
         <div style="display:flex; justify-content:space-between; gap:10px; align-items:baseline;">
           <span style="font-weight:700; font-size:14px;">${escapeHtml(r.item)}</span>
-          <span style="font-size:13px; font-weight:700; text-align:right; color:${s.state === 'due' ? 'var(--danger)' : 'var(--blue)'};">${s.n} / ${s.limit} ${unit}${s.limitDays ? '<br>' + s.days + ' / ' + s.limitDays + ' days' : ''}</span>
+          <span style="font-size:13px; font-weight:700; text-align:right; color:${s.state === 'due' ? 'var(--danger)' : (s.state === 'warn' ? '#B07A00' : '#2C8A4B')};">${s.n} / ${s.limit} ${unit}${s.limitDays ? '<br>' + s.days + ' / ' + s.limitDays + ' days' : ''}</span>
         </div>
         <div class="prog ${cls}"><div style="width:${Math.min(100, Math.round(s.pct * 100))}%;"></div></div>
         <div style="font-size:11.5px; color:var(--muted);">
-          ${s.state === 'due' ? '<b style="color:var(--danger);">Service due.</b> ' : (s.state === 'warn' ? '<b style="color:#8A5A00;">Due soon.</b> ' : '')}${(s.state !== 'ok' && r.note) ? escapeHtml(r.note) + ' ' : ''}${r.since ? 'Counting since ' + fmtDate(r.since + 'T12:00:00') : 'Counting every call logged'}${currentUser === 'Master' && r.owner ? ' · ' + escapeHtml(r.owner) : ''}
+          ${s.state === 'due' ? '<b style="color:var(--danger);">Service due.</b> ' : (s.state === 'warn' ? '<b style="color:#B07A00;">Getting close.</b> ' : '')}${(s.state !== 'ok' && r.note) ? escapeHtml(r.note) + ' ' : ''}${r.since ? 'Counting since ' + fmtDate(r.since + 'T12:00:00') : 'Counting every call logged'}${currentUser === 'Master' && r.owner ? ' · ' + escapeHtml(r.owner) : ''}
         </div>
         <div style="display:flex; gap:14px; margin-top:6px;">
           <button class="delete-btn" style="color:var(--blue-light);margin-left:0;" onclick="markEquipServiced('${r.id}')">Mark serviced</button>
@@ -3094,6 +3116,8 @@
   // Banner at the top of the Log tab when something is within 10% of (or past) its service number.
   function renderMaintBanner(){
     const el = document.getElementById('maintBanner');
+    // No service alerts on the Log tab — equipment status is shown (color-coded) in the Maintenance tab only.
+    el.innerHTML = ''; return;
     const due = myRecords('equipment').map(r => ({ r: r, s: equipStatus(r) })).filter(x => x.s.limit > 0 && x.s.state !== 'ok');
     if(!due.length){ el.innerHTML = ''; return; }
     el.innerHTML = due.map(x => {
