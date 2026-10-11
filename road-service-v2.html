@@ -3772,6 +3772,10 @@
       + row('Total costs', '−' + fmtMoney(costs))
       + row('<b>Net after all costs</b>', '<b>' + fmtMoney(net) + '</b>', netClass(net));
     html += '<div class="breakdown-title" style="margin-top:14px;">Services this month</div>' + renderServiceBreakdown(p.svc || {});
+    const comboKeys = Object.keys(p.combo || {}).sort((a, b) => p.combo[b].count - p.combo[a].count || p.combo[b].revenue - p.combo[a].revenue);
+    html += '<div class="breakdown-title" style="margin-top:14px;">Combos this month (2+ services on one call)</div>' + (comboKeys.length
+      ? comboKeys.map(k => `<div class="breakdown-row"><span class="k">${escapeHtml(k)}</span><span class="v-stack"><span class="v-jobs">${p.combo[k].count} call${p.combo[k].count === 1 ? '' : 's'}</span><span class="v-revenue">${fmtMoney(p.combo[k].revenue)}</span></span></div>`).join('')
+      : '<div class="no-data">No calls with 2+ services this month.</div>');
     if(currentUser === 'Master') html += '<div style="margin-top:10px;">' + renderTimeBreakdownByRegion({ [key]: p }) + '</div>';
     box.innerHTML = html;
     renderMakeReport();
