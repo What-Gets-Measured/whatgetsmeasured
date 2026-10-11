@@ -872,6 +872,12 @@
     </div>
 
     <div class="card">
+      <div class="breakdown-title">Service Combos <span id="comboScope" style="font-weight:500; color:var(--faint); font-size:11.5px;"></span></div>
+      <div style="font-size:11.5px; color:var(--faint); margin-bottom:6px;">Calls with 2+ services, grouped by the exact mix. Follows the month picked in Month Rundown. Revenue is the whole call total.</div>
+      <div id="byCombo" class="no-data">No data yet.</div>
+    </div>
+
+    <div class="card">
       <div class="breakdown-title">By Vehicle Make <span id="makeScope" style="font-weight:500; color:var(--faint); font-size:11.5px;"></span></div>
       <div style="font-size:11.5px; color:var(--faint); margin-bottom:6px;">Follows the month picked in Month Rundown. Tap a make to see its models and the services done on it.</div>
       <div id="byMake" class="no-data">No data yet.</div>
@@ -3513,7 +3519,7 @@
     return { mKey: mKey, mLabel: mLabel, qKey: d.getFullYear() + '-Q' + q, qLabel: 'Q' + q + ' ' + d.getFullYear() };
   }
 
-  let summaryAll = { svc: {}, make: {} };
+  let summaryAll = { svc: {}, make: {}, combo: {} };
   let openMakes = new Set();
 
   // A call's real services: every line except a Discount.
@@ -3540,6 +3546,13 @@
       t.count++; t.revenue += (sv.price || 0);
       t.regions[regionKey] = (t.regions[regionKey] || 0) + 1;
     });
+    // Combos: the exact set of services on a call with 2 or more (Discount lines ignored), e.g. "Boost + Tire Change".
+    const names = Array.from(new Set(lines.map(sv => sv.service).filter(n => n !== 'Discount'))).sort();
+    if(names.length >= 2){
+      const ck = names.join(' + ');
+      const c = p.combo[ck] || (p.combo[ck] = { count: 0, revenue: 0 });
+      c.count++; c.revenue += (e.totalPrice || 0);
+    }
     const mk = canonMake(e.vehicleMake);
     const m = p.make[mk] || (p.make[mk] = { count: 0, revenue: 0, models: {}, svc: {} });
     m.count++; m.revenue += (e.totalPrice || 0);
@@ -3570,6 +3583,9 @@
     const box = document.getElementById('byMake');
     const key = document.getElementById('sumMonthSelect').value;
     const src = (key && summaryMonths[key]) ? summaryMonths[key] : summaryAll;
+    const combos = Object.keys(src.combo || {}).sort((a, b) => src.combo[b].count - src.combo[a].count || src.combo[b].revenue - src.combo[a].revenue);
+    document.getElementById('byCombo').innerHTML = combos.length ? combos.map(k => `<div class="breakdown-row"><span class="k">${escapeHtml(k)}</span><span class="v-stack"><span class="v-jobs">${src.combo[k].count} call${src.combo[k].count === 1 ? '' : 's'}</span><span class="v-revenue">${fmtMoney(src.combo[k].revenue)}</span></span></div>`).join('') : '<div class="no-data">No calls with 2+ services yet.</div>';
+    document.getElementById('comboScope').textContent = (key && summaryMonths[key]) ? summaryMonths[key].label : 'All time';
     document.getElementById('makeScope').textContent = (key && summaryMonths[key]) ? summaryMonths[key].label : 'All time';
     const makes = Object.keys(src.make);
     if(!makes.length){ box.innerHTML = '<div class="no-data">No data yet.</div>'; return; }
@@ -3606,12 +3622,12 @@
     const byRegion = {};
     const byMonth = {}, byQuarter = {};
     const totals = zeroTotals();
-    const allDetail = { svc: {}, make: {} };
+    const allDetail = { svc: {}, make: {}, combo: {} };
 
     // A period bucket holds every money/time total, plus the same split by region
     // (the region split is what Master sees: Tallahassee vs Central FL side by side).
     function bump(map, key, label, regionKey, d){
-      if(!map[key]) map[key] = Object.assign({ label: label, regions: {}, svc: {}, make: {} }, zeroTotals());
+      if(!map[key]) map[key] = Object.assign({ label: label, regions: {}, svc: {}, make: {}, combo: {} }, zeroTotals());
       const p = map[key];
       addInto(p, d);
       if(!p.regions[regionKey]) p.regions[regionKey] = zeroTotals();
