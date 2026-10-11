@@ -705,6 +705,7 @@
       <button class="btn-primary" id="invSaveBtn" onclick="saveInventory()">Save Item</button>
       <button class="btn-secondary hidden" id="invCancelEditBtn" style="margin-top:8px;" onclick="resetInventoryForm()">Cancel Edit</button>
     </div>
+    <div id="invStarter" class="card hidden"></div>
     <div id="invList"></div>
     <div id="invEmptyState" class="empty hidden"><p>No inventory listed yet.</p></div>
   </div>
@@ -877,7 +878,7 @@
       <div id="byCombo" class="no-data">No data yet.</div>
     </div>
 
-    <div class="card">
+    <div class="card hidden" id="byMakeCard">
       <div class="breakdown-title">By Vehicle Make <span id="makeScope" style="font-weight:500; color:var(--faint); font-size:11.5px;"></span></div>
       <div style="font-size:11.5px; color:var(--faint); margin-bottom:6px;">Follows the month picked in Month Rundown. Tap a make to see its models and the services done on it.</div>
       <div id="byMake" class="no-data">No data yet.</div>
@@ -3196,6 +3197,19 @@
     renderInventoryList();
     syncRecord(r).then(renderSyncStatusBar);
   }
+  // One tap: take one off the count and add it to this item's "left behind" tally.
+  function leftBehindInventory(id){
+    const r = records.find(x => x.id === id);
+    if(!r || (r.qty || 0) < 1) return;
+    r.qty = r.qty - 1;
+    r.leftBehind = (r.leftBehind || 0) + 1;
+    r.updatedAt = new Date().toISOString();
+    r.submitted = false;
+    saveRecordsLocal();
+    renderInventoryList();
+    showToast('Left behind: ' + r.item + ' (' + r.leftBehind + ' total)');
+    syncRecord(r).then(renderSyncStatusBar);
+  }
   function confirmDeleteInventory(id){
     if(confirm('Remove this item from inventory?')){
       if(editingInvId === id) resetInventoryForm();
@@ -3203,23 +3217,54 @@
       renderInventoryList();
     }
   }
+  // Starter equipment list for a new road-service setup (from Dom's startup spreadsheet).
+  // Loaded with quantity 0 = "not bought yet"; tap + as each item is picked up.
+  const STARTER_INVENTORY = [{"g":"Jump Starts","n":"Jump Box","p":160.13,"v":"JB Tools","l":"https://www.jbtools.com/jump-n-carry-jnc770r-1700-peak-amp-premium-12-volt-jump-starter-red/"},{"g":"Jump Starts","n":"Battery Tester","p":39.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12v-digital-battery-and-system-tester-58759.html"},{"g":"Jump Starts","n":"Jumper Cables","p":39.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/20-ft-2-gauge-super-heavy-duty-jumper-cables-56236.html"},{"g":"Battery Installations","n":"Tool kit","p":null,"v":null,"l":null},{"g":"Battery Installations","n":"Ratchet","p":null,"v":null,"l":null},{"g":"Battery Installations","n":"Socket Set (6-16mm)","p":null,"v":null,"l":null},{"g":"Battery Installations","n":"Battery ratchet","p":null,"v":null,"l":null},{"g":"Battery Installations","n":"Post and terminal Cleaning Brush","p":null,"v":"Harbor Freight","l":null},{"g":"Battery Installations","n":"Spray","p":null,"v":null,"l":null},{"g":"Battery Installations","n":"Latex Gloves","p":null,"v":null,"l":null},{"g":"Tire Changes","n":"Wheel Chocks (2)","p":"$3-$7","v":"Harbor Freight","l":"https://www.harborfreight.com/solid-rubber-wheel-chock-96479.html"},{"g":"Tire Changes","n":"3 Ton Jack( Aluminum)","p":249.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/3-ton-low-profile-aluminum-racing-floor-jack-with-rapid-pump-64544.html"},{"g":"Tire Changes","n":"3 Ton Jack (Heavy one but cheaper)","p":149.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/3-ton-floor-jack-with-rapid-pump-slate-gray-70486.html"},{"g":"Tire Changes","n":"1.5 Ton Jack","p":139.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/15-ton-professional-racing-series-aluminum-floor-jack-with-rapid-pump-58206.html"},{"g":"Tire Changes","n":"3 Ton Jack Stands","p":34.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/3-ton-heavy-duty-ratcheting-jack-stands-metallic-red-71423.html"},{"g":"Tire Changes","n":"Lug Set","p":79.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12-in-drive-super-high-torque-lug-nut-impact-socket-set-11-piece-69829.html"},{"g":"Tire Changes","n":"Back Up Lug Set","p":49.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12-in-drive-sae-and-metric-lug-nut-impact-sockets-7-piece-69781.html"},{"g":"Tire Changes","n":"Locking Lug Removal Set","p":44.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/universal-locking-lug-nut-removal-set-58535.html"},{"g":"Tire Changes","n":"1/2 in Ratchet","p":16.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12-in-drive-low-profile-ratchet-with-soft-grip-59848.html"},{"g":"Tire Changes","n":"1/2 in Breaker Bar","p":39.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12-in-drive-25-in-professional-breaker-bar-with-tpr-grip-64821.html"},{"g":"Tire Changes","n":"1/2 in Impact Wrench","p":null,"v":"Harbor Freight","l":null},{"g":"Tire Changes","n":"1/2 in Torque Wrench","p":21.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12-in-drive-10-to-150-ft-lb-click-torque-wrench-63882.html"},{"g":"Tire Changes","n":"4 Ton Bottle Jack","p":14.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/4-ton-hydraulic-bottle-jack-56684.html"},{"g":"Tire Changes","n":"Flathead Screwdriver","p":2.49,"v":"Harbor Freight","l":"https://www.harborfreight.com/3-8-eighth-inch-x-8-inch-slotted-screwdriver-94619.html"},{"g":"Tire Changes","n":"Sledgehammer","p":17.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/3-lb-steel-drilling-hammer-70057.html"},{"g":"Tire Changes","n":"5lb Dead Blow Hammer","p":15.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/5-lb-neon-orange-dead-blow-hammer-59487.html"},{"g":"Tire Changes","n":"12 Point Sacrificial Socket Set","p":null,"v":"Harbor Freight","l":null},{"g":"Tire Changes","n":"Air Compressor","p":149.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/12v-125-psi-high-performance-inflator-59624.html"},{"g":"Tire Changes","n":"Locking Lug Nut Master Key Set","p":99.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/locking-lug-nut-master-key-set-16-piece-63739.html"},{"g":"Tire Changes","n":"Pencil Air Gauge (2)","p":3.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/pencil-gauge-57253.html"},{"g":"Fuel Delivery","n":"Gas Can","p":18.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/5-gallon-gas-can-56419.html"},{"g":"Fuel Delivery","n":"Long Neck Funnel","p":4.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/18-inch-long-neck-black-funnel-66479.html"},{"g":"Fuel Delivery","n":"Ford/Lincoln Funnel","p":6.99,"v":"Amazon","l":"https://www.amazon.com/dp/B0F9KWS8MN"},{"g":"Lockouts","n":"Lockout Kit","p":153.95,"v":"JB Tools","l":"https://www.jbtools.com/access-tools-elrk-essential-long-reach-kit-elrk/"},{"g":"Lockouts","n":"Second Air Bag","p":34.5,"v":"JB Tools","l":"https://www.jbtools.com/access-tools-aw-air-wedge/"},{"g":"Lockouts","n":"Replacement Tips","p":7.95,"v":"JB Tools","l":"https://www.jbtools.com/access-tools-sng-tips-store-n-go-handle-replacement-tips-sng-tips/"},{"g":"Lockouts","n":"Second Long Reach Tool","p":23.95,"v":"JB Tools","l":"https://www.jbtools.com/access-tools-fm-flex-max/"},{"g":"PPE","n":"Reflective Vest","p":9.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/safety-vest-57429.html"},{"g":"PPE","n":"Cones","p":12.99,"v":"Harbor Freight","l":"https://www.harborfreight.com/collapsible-reflective-emergency-cone-94111.html"},{"g":"PPE","n":"Gloves","p":null,"v":null,"l":null}];
+  function starterLoaded(){ return myRecords('inventory').some(r => r.starter); }
+  function renderStarterBox(){
+    const box = document.getElementById('invStarter');
+    const show = currentUser !== 'Master' && !starterLoaded();
+    box.classList.toggle('hidden', !show);
+    if(show) box.innerHTML = `<div class="section-label">Starter equipment list</div>
+      <div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">Adds ${STARTER_INVENTORY.length} items grouped by job type (jump starts, tire changes, lockouts, fuel delivery, PPE) with where to buy each one. Everything starts at 0 — tap + as you get each item. Safe to delete anything you don't need.</div>
+      <button class="btn-primary" id="starterBtn" onclick="loadStarterInventory()">Load starter list</button>`;
+  }
+  async function loadStarterInventory(){
+    if(currentUser === 'Master' || starterLoaded()) return;
+    const have = new Set(myRecords('inventory').map(r => (r.item || '').toLowerCase()));
+    const made = [];
+    STARTER_INVENTORY.forEach(x => {
+      if(have.has(x.n.toLowerCase())) return;
+      const bits = [x.v, x.p == null ? null : (typeof x.p === 'number' ? fmtMoney(x.p) : x.p)].filter(Boolean);
+      const rec = newRecord('inventory', { item: x.n, qty: 0, category: '', lowAt: null, notes: bits.join(' · '), group: x.g, link: x.l || '', starter: true, date: new Date().toISOString() });
+      commitRecordLocal(rec); made.push(rec);
+    });
+    renderInventoryList();   // list shows instantly; the Sheet catches up in the background
+    showToast(made.length + ' items added ✓');
+    for(const rec of made) await syncRecord(rec);
+    renderInventoryList();
+  }
   function renderInventoryList(){
     renderSyncStatusBar();
+    renderStarterBox();
     const list = document.getElementById('invList');
     const empty = document.getElementById('invEmptyState');
-    const visible = myRecords('inventory').slice().sort((a, b) => (a.item || '').localeCompare(b.item || ''));
+    const visible = myRecords('inventory').slice().sort((a, b) => (a.group || '~').localeCompare(b.group || '~') || (a.item || '').localeCompare(b.item || ''));
     if(!visible.length){ list.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
+    let lastGroup = null;
     list.innerHTML = visible.map(r => {
       const low = r.lowAt != null && (r.qty || 0) <= r.lowAt;
-      return `
+      const head = (r.group && r.group !== lastGroup) ? `<div class="section-label" style="margin:14px 2px 6px;">${escapeHtml(r.group)}</div>` : '';
+      lastGroup = r.group || lastGroup;
+      return head + `
       <div class="ticket"><div class="ticket-inner">
         <div class="ticket-bar" style="background:${low ? 'var(--danger)' : 'var(--rose)'};"></div>
         <div class="ticket-body">
           <div class="ticket-top">
             <div>
               <div class="ticket-vehicle">${escapeHtml(r.item)}</div>
-              <div class="ticket-provider">${r.notes ? escapeHtml(r.notes) : ''}${low ? `<span class="inv-low"> ${r.notes ? '· ' : ''}Low — restock</span>` : ''}</div>
+              <div class="ticket-provider">${r.notes ? escapeHtml(r.notes) : ''}${low ? `<span class="inv-low"> ${r.notes ? '· ' : ''}Low — restock</span>` : ''}${r.leftBehind ? `<div style="font-size:11.5px; color:var(--muted);">Left behind: ${r.leftBehind} so far</div>` : ''}</div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button class="qty-btn" onclick="adjustInventory('${r.id}', -1)" aria-label="Remove one">−</button>
@@ -3229,8 +3274,9 @@
           </div>
           ${currentUser === 'Master' && r.owner ? `<div class="ticket-meta"><span><span class="label">Listed by</span> ${escapeHtml(r.owner)}</span></div>` : ''}
           <div class="ticket-bottom">
-            <div class="ticket-customer"></div>
+            <div class="ticket-customer">${/^https:\/\//.test(r.link || '') ? `<a href="${escapeHtml(r.link)}" target="_blank" rel="noopener" style="font-size:12px; color:var(--blue-light);">Where to buy ↗</a>` : ''}</div>
             <div style="display:flex; gap:14px; flex-shrink:0;">
+              ${(r.qty || 0) >= 1 ? `<button class="delete-btn" style="color:var(--blue-light);" onclick="leftBehindInventory('${r.id}')">Left behind</button>` : ''}
               <button class="delete-btn" style="color:var(--blue-light);" onclick="startEditInventory('${r.id}')">Edit</button>
               <button class="delete-btn" onclick="confirmDeleteInventory('${r.id}')">Delete</button>
             </div>
@@ -3580,6 +3626,7 @@
     renderMakeReport();
   }
   function renderMakeReport(){
+    document.getElementById('byMakeCard').classList.toggle('hidden', currentUser !== 'Master'); // vehicle make report is Master-only
     const box = document.getElementById('byMake');
     const key = document.getElementById('sumMonthSelect').value;
     const src = (key && summaryMonths[key]) ? summaryMonths[key] : summaryAll;
