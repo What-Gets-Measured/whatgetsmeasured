@@ -237,6 +237,7 @@
   <button class="tab" data-view="expenses" onclick="setView('expenses')">Expenses</button>
   <button class="tab" data-view="maint" onclick="setView('maint')">Maintenance</button>
   <button class="tab" data-view="inventory" onclick="setView('inventory')">Inventory</button>
+  <button class="tab hidden" id="listsTab" data-view="lists" onclick="setView('lists')">Lists</button>
   <button class="tab" data-view="summary" onclick="setView('summary')">Summary</button>
   <button class="tab" data-view="allstatecalc" onclick="setView('allstatecalc')">Allstate Calc</button>
 </div>
@@ -551,7 +552,7 @@
         <span class="field-label">Notes (optional)</span>
         <input id="expNotes" placeholder="e.g. October premium">
       </label>
-      <div class="miles-hint hidden" id="expFuelHint">Fuel fill-ups replace the mileage-based fuel estimate for that month in the Summary, so fuel is never counted twice.</div>
+      <div class="miles-hint hidden" id="expFuelHint">Fill-ups of your own vehicle replace the mileage-based fuel estimate for that month in the Summary, so fuel is never counted twice.</div>
       <div class="error-msg hidden" id="expErrorMsg"></div>
       <button class="btn-primary" id="expSaveBtn" onclick="saveExpense()">Save Expense</button>
       <button class="btn-secondary hidden" id="expCancelEditBtn" style="margin-top:8px;" onclick="resetExpenseForm()">Cancel Edit</button>
@@ -593,6 +594,15 @@
             <input type="number" inputmode="numeric" id="equipLimit" placeholder="e.g. 1000">
           </label>
         </div>
+        <label class="field">
+          <span class="field-label">Or every … days (optional)</span>
+          <input type="number" inputmode="numeric" id="equipDays" placeholder="e.g. 60">
+        </label>
+        <label class="field">
+          <span class="field-label">Counting since (optional)</span>
+          <input type="date" id="equipSince">
+        </label>
+        <div class="miles-hint" style="margin-top:-6px;">Leave blank to count every call logged so far. Set a date if it was last serviced then.</div>
         <div class="error-msg hidden" id="equipErrorMsg"></div>
         <button class="btn-primary" id="equipSaveBtn" onclick="saveEquipment()">Save Equipment</button>
         <button class="btn-secondary" style="margin-top:8px;" onclick="closeEquipForm()">Cancel</button>
@@ -745,6 +755,28 @@
     </div>
   </div>
 
+  <div id="view-lists" class="hidden">
+    <div class="card">
+      <div class="breakdown-title">Providers</div>
+      <div style="font-size:11.5px; color:var(--faint); margin-bottom:8px;">These feed the Provider and "Provider Invoice" payment dropdowns for every login. Hide keeps the history but removes it from the dropdowns.</div>
+      <div id="listProviders"></div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <input id="newProviderName" placeholder="New provider name" style="flex:1; min-width:0;">
+        <button type="button" class="btn-secondary" style="width:auto; padding:0 16px;" onclick="addListItem('provider')">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="breakdown-title">Service Types</div>
+      <div style="font-size:11.5px; color:var(--faint); margin-bottom:8px;">The seven built-in services can be hidden but never deleted. Gas, Boost and Discount keep their special behavior wherever they are shown.</div>
+      <div id="listServices"></div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <input id="newServiceName" placeholder="New service name" style="flex:1; min-width:0;">
+        <button type="button" class="btn-secondary" style="width:auto; padding:0 16px;" onclick="addListItem('service')">Add</button>
+      </div>
+    </div>
+    <div id="listsMsg" class="miles-hint hidden"></div>
+  </div>
+
   <div id="view-summary" class="hidden">
     <button class="btn-primary" style="margin-bottom:8px;" onclick="exportCsv()">Export CSV</button>
     <div style="font-size:11.5px; color:var(--faint); margin-bottom:12px;">
@@ -754,6 +786,14 @@
       <div class="stat-card">
         <div class="k">Total Calls</div>
         <div class="v" id="sumJobs">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="k">Services Performed</div>
+        <div class="v" id="sumServices">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="k">Calls With 2+ Services</div>
+        <div class="v" id="sumMulti">0</div>
       </div>
       <div class="stat-card">
         <div class="k">Total Revenue</div>
@@ -829,6 +869,12 @@
     <div class="card">
       <div class="breakdown-title">By Service Type</div>
       <div id="byService" class="no-data">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <div class="breakdown-title">By Vehicle Make <span id="makeScope" style="font-weight:500; color:var(--faint); font-size:11.5px;"></span></div>
+      <div style="font-size:11.5px; color:var(--faint); margin-bottom:6px;">Follows the month picked in Month Rundown. Tap a make to see its models and the services done on it.</div>
+      <div id="byMake" class="no-data">No data yet.</div>
     </div>
 
     <div class="card">
@@ -927,6 +973,7 @@
     } catch(e){ tools = []; }
     sortTools();
     loadRecordsLocal();
+    loadOptionsLocal();
   }
 
   function saveLocal(){
@@ -1025,7 +1072,8 @@
     return {
       entries: (data.entries || []).map(migrateEntry),
       tools: Array.isArray(data.tools) ? data.tools : null,
-      records: Array.isArray(data.records) ? data.records : null // null = Sheet script not updated yet
+      records: Array.isArray(data.records) ? data.records : null, // null = Sheet script not updated yet
+      options: Array.isArray(data.options) ? data.options : null
     };
   }
 
@@ -1110,6 +1158,7 @@
 
     // Expenses / maintenance / inventory / equipment
     await pushPendingRecords();
+    await pushPendingOptions();
   }
 
   // Full sync cycle: pull the Sheet in, merge, push anything still pending.
@@ -1126,6 +1175,7 @@
       mergeSheetIntoLocal(sheetData.entries);
       mergeToolsIntoLocal(sheetData.tools);
       mergeRecordsIntoLocal(sheetData.records);
+      mergeOptionsIntoLocal(sheetData.options);
       await pushPendingChanges();
       syncStatus = 'synced';
     } catch(err) {
@@ -1149,7 +1199,7 @@
     if(v !== 'maint' && editingMaintId) resetMaintForm();
     if(v !== 'maint' && !document.getElementById('equipForm').classList.contains('hidden')) closeEquipForm();
     if(v !== 'inventory' && editingInvId) resetInventoryForm();
-    ['log','new','tools','expenses','maint','inventory','allstatecalc','summary'].forEach(name => {
+    ['log','new','tools','expenses','maint','inventory','allstatecalc','lists','summary'].forEach(name => {
       document.getElementById('view-' + name).classList.toggle('hidden', name !== v);
       const tabBtn = document.querySelector('.tab[data-view="' + name + '"]');
       tabBtn.classList.toggle('active', name === v);
@@ -1173,6 +1223,10 @@
     if(v === 'inventory'){
       renderInventoryList();
       syncWithSheet().then(() => { renderInventoryList(); });
+    }
+    if(v === 'lists'){
+      renderListsView();
+      syncWithSheet().then(() => { renderListsView(); });
     }
     if(v === 'tools'){
       renderToolList(); // instant, from whatever's already local
@@ -1438,7 +1492,7 @@
         <label class="field" style="margin-bottom:8px;">
           <select class="svc-select" onchange="handleServiceChange('${rowId}')">
             <option value="">Select service…</option>
-            ${SERVICE_OPTIONS.map(s => `<option>${s}</option>`).join('')}
+            ${serviceChoices().map(s => `<option>${escapeHtml(s)}</option>`).join('')}
           </select>
         </label>
         <label class="field" style="margin-bottom:8px;">
@@ -1857,6 +1911,9 @@
     const row = document.getElementById(rowId);
     const select = row.querySelector('.svc-select');
     const priceInput = row.querySelector('.svc-price');
+    if(sv.service && !Array.from(select.options).some(o => o.value === sv.service)){
+      const opt = document.createElement('option'); opt.textContent = sv.service; select.appendChild(opt); // hidden service on an old ticket stays selectable
+    }
     select.value = sv.service || '';
 
     if(sv.service === 'Discount'){
@@ -2608,19 +2665,21 @@
   let editingExpId = null, editingMaintId = null, editingEquipId = null, editingInvId = null;
   const recSyncLocks = new Set();
 
-  const EXPENSE_CATEGORIES = ['Car Insurance','Phone / Data Plan','Fuel (fill-up)','Business Insurance','Permits & Licensing','Supplies','Marketing','Other'];
-  const FUEL_CATEGORY = 'Fuel (fill-up)';
+  const EXPENSE_CATEGORIES = ['Car Insurance','Phone / Data Plan','Own vehicle fuel (fill-up)','Business Insurance','Permits & Licensing','Supplies','Marketing','Other'];
+  const FUEL_CATEGORY = 'Own vehicle fuel (fill-up)';
+  const LEGACY_FUEL_CATEGORY = 'Fuel (fill-up)'; // the old name — records already saved under it are treated as the new one
+  function normRecord(r){ if(r && r.category === LEGACY_FUEL_CATEGORY) r.category = FUEL_CATEGORY; return r; }
   const EQUIP_COUNT_LABELS = { boost: 'boosts', tire: 'tire jobs', all: 'jobs' };
   // Starting points only — Dom can change the number on the card. These are placeholders, not manufacturer ratings.
   const EQUIP_PRESETS = [
     { name: 'Jump starter (commercial)', counts: 'boost', limit: 1000 },
-    { name: 'Hydraulic jacks', counts: 'tire', limit: 300 }
+    { name: 'Pittsburgh 3-ton jack', counts: 'tire', limit: 300, limitDays: 60, note: 'Check for leaks and fluid level before the next job.' }
   ];
 
   function loadRecordsLocal(){
     try {
       const raw = localStorage.getItem(RECORDS_KEY);
-      records = raw ? JSON.parse(raw) : [];
+      records = raw ? JSON.parse(raw).map(normRecord) : [];
     } catch(e){ records = []; }
     sortRecords();
   }
@@ -2673,11 +2732,15 @@
     }
   }
 
-  async function commitRecord(rec){
+  // Saves on this phone right away (so the screen can update at once), without waiting on the Sheet.
+  function commitRecordLocal(rec){
     const idx = records.findIndex(r => r.id === rec.id);
     if(idx !== -1) records[idx] = rec; else records.push(rec);
     sortRecords();
     saveRecordsLocal();
+  }
+  async function commitRecord(rec){
+    commitRecordLocal(rec);
     await syncRecord(rec);
   }
 
@@ -2703,7 +2766,7 @@
       const local = byId[r.id];
       if(local && local.submitted === false) return; // unsynced local edit wins over stale Sheet data
       r.submitted = true;
-      byId[r.id] = r;
+      byId[r.id] = normRecord(r);
     });
     records = Object.values(byId);
     sortRecords();
@@ -2757,7 +2820,9 @@
       ? Object.assign({}, existing, fields, { updatedAt: new Date().toISOString(), submitted: false })
       : newRecord('expense', fields);
     resetExpenseForm();
-    await commitRecord(rec);
+    commitRecordLocal(rec);
+    renderExpenseList();
+    await syncRecord(rec);
     renderExpenseList();
     showToast(wasEditing ? 'Expense updated ✓' : 'Expense saved ✓');
   }
@@ -2869,9 +2934,11 @@
       ? Object.assign({}, existing, fields, { updatedAt: new Date().toISOString(), submitted: false })
       : newRecord('maintenance', fields);
     resetMaintForm();
-    await commitRecord(rec);
+    commitRecordLocal(rec);
     renderMaintView();
     showToast(wasEditing ? 'Service updated ✓' : 'Service saved ✓');
+    await syncRecord(rec);
+    renderMaintView();
   }
   function startEditMaint(id){
     const r = records.find(x => x.id === id);
@@ -2915,8 +2982,14 @@
   function equipStatus(rec){
     const n = equipCount(rec);
     const limit = rec.limit || 0;
-    const pct = limit > 0 ? n / limit : 0;
-    return { n: n, limit: limit, pct: pct, state: pct >= 1 ? 'due' : (pct >= 0.9 ? 'warn' : 'ok') };
+    const limitDays = rec.limitDays || 0;
+    // Days run from the "counting since" date, or from when the reminder was created if there isn't one.
+    const base = new Date(rec.since ? rec.since + 'T12:00:00' : (rec.date || Date.now()));
+    const days = isNaN(base) ? 0 : Math.max(0, Math.floor((Date.now() - base.getTime()) / 86400000));
+    const pctJobs = limit > 0 ? n / limit : 0;
+    const pctDays = limitDays > 0 ? days / limitDays : 0;
+    const pct = Math.max(pctJobs, pctDays);
+    return { n: n, limit: limit, days: days, limitDays: limitDays, pct: pct, state: pct >= 1 ? 'due' : (pct >= 0.9 ? 'warn' : 'ok') };
   }
   function renderEquipment(){
     const list = document.getElementById('equipList');
@@ -2928,11 +3001,11 @@
       return `<div style="padding:10px 0; border-bottom:1px solid #F1E6EC;">
         <div style="display:flex; justify-content:space-between; gap:10px; align-items:baseline;">
           <span style="font-weight:700; font-size:14px;">${escapeHtml(r.item)}</span>
-          <span style="font-size:13px; font-weight:700; color:${s.state === 'due' ? 'var(--danger)' : 'var(--blue)'};">${s.n} / ${s.limit} ${unit}</span>
+          <span style="font-size:13px; font-weight:700; text-align:right; color:${s.state === 'due' ? 'var(--danger)' : 'var(--blue)'};">${s.n} / ${s.limit} ${unit}${s.limitDays ? '<br>' + s.days + ' / ' + s.limitDays + ' days' : ''}</span>
         </div>
         <div class="prog ${cls}"><div style="width:${Math.min(100, Math.round(s.pct * 100))}%;"></div></div>
         <div style="font-size:11.5px; color:var(--muted);">
-          ${s.state === 'due' ? '<b style="color:var(--danger);">Service due.</b> ' : (s.state === 'warn' ? '<b style="color:#8A5A00;">Due soon.</b> ' : '')}Counting since ${r.since ? fmtDate(r.since + 'T12:00:00') : 'the start'}${currentUser === 'Master' && r.owner ? ' · ' + escapeHtml(r.owner) : ''}
+          ${s.state === 'due' ? '<b style="color:var(--danger);">Service due.</b> ' : (s.state === 'warn' ? '<b style="color:#8A5A00;">Due soon.</b> ' : '')}${(s.state !== 'ok' && r.note) ? escapeHtml(r.note) + ' ' : ''}${r.since ? 'Counting since ' + fmtDate(r.since + 'T12:00:00') : 'Counting every call logged'}${currentUser === 'Master' && r.owner ? ' · ' + escapeHtml(r.owner) : ''}
         </div>
         <div style="display:flex; gap:14px; margin-top:6px;">
           <button class="delete-btn" style="color:var(--blue-light);margin-left:0;" onclick="markEquipServiced('${r.id}')">Mark serviced</button>
@@ -2944,13 +3017,16 @@
     const have = new Set(eq.map(r => r.item));
     const presets = EQUIP_PRESETS.map((p, i) => ({ p: p, i: i })).filter(x => !have.has(x.p.name));
     document.getElementById('equipPresets').innerHTML = presets.map(x =>
-      `<button type="button" class="btn-secondary" onclick="addEquipPreset(${x.i})">+ ${escapeHtml(x.p.name)} — service every ${x.p.limit} ${EQUIP_COUNT_LABELS[x.p.counts]}</button>`).join('');
+      `<button type="button" class="btn-secondary" onclick="addEquipPreset(${x.i})">+ ${escapeHtml(x.p.name)} — service every ${x.p.limit} ${EQUIP_COUNT_LABELS[x.p.counts]}${x.p.limitDays ? ' or ' + x.p.limitDays + ' days' : ''}</button>`).join('');
   }
   async function addEquipPreset(i){
     const p = EQUIP_PRESETS[i];
     if(!p) return;
-    const rec = newRecord('equipment', { item: p.name, counts: p.counts, limit: p.limit, since: todayDateString(), date: composeDateISO(todayDateString()) });
-    await commitRecord(rec);
+    if(myRecords('equipment').some(r => r.item === p.name)) { renderMaintView(); return; } // already added — never a second copy
+    const rec = newRecord('equipment', { item: p.name, counts: p.counts, limit: p.limit, since: '', limitDays: p.limitDays || 0, note: p.note || '', date: composeDateISO(todayDateString()) });
+    commitRecordLocal(rec);
+    renderMaintView();   // the button disappears right away, before the Sheet is contacted
+    await syncRecord(rec);
     renderMaintView();
   }
   function openEquipForm(id){
@@ -2959,6 +3035,8 @@
     document.getElementById('equipName').value = r ? r.item : '';
     document.getElementById('equipCounts').value = r ? (r.counts || 'all') : 'all';
     document.getElementById('equipLimit').value = r ? r.limit : '';
+    document.getElementById('equipSince').value = (r && r.since) ? r.since : '';
+    document.getElementById('equipDays').value = (r && r.limitDays) ? r.limitDays : '';
     document.getElementById('equipFormTitle').textContent = r ? 'Edit Equipment' : 'Add Equipment';
     document.getElementById('equipErrorMsg').classList.add('hidden');
     document.getElementById('equipForm').classList.remove('hidden');
@@ -2973,15 +3051,19 @@
     const name = document.getElementById('equipName').value.trim();
     const counts = document.getElementById('equipCounts').value;
     const limit = parseInt(document.getElementById('equipLimit').value, 10);
+    const since = document.getElementById('equipSince').value || ''; // blank = count every call logged
+    const limitDays = parseInt(document.getElementById('equipDays').value, 10) || 0;
     const err = document.getElementById('equipErrorMsg');
     if(!name){ err.textContent = 'Enter a name.'; err.classList.remove('hidden'); return; }
     if(isNaN(limit) || limit <= 0){ err.textContent = 'Enter how many before it needs service.'; err.classList.remove('hidden'); return; }
     const existing = editingEquipId ? records.find(r => r.id === editingEquipId) : null;
     const rec = existing
-      ? Object.assign({}, existing, { item: name, counts: counts, limit: limit, updatedAt: new Date().toISOString(), submitted: false })
-      : newRecord('equipment', { item: name, counts: counts, limit: limit, since: todayDateString(), date: composeDateISO(todayDateString()) });
+      ? Object.assign({}, existing, { item: name, counts: counts, limit: limit, limitDays: limitDays, since: since, updatedAt: new Date().toISOString(), submitted: false })
+      : newRecord('equipment', { item: name, counts: counts, limit: limit, limitDays: limitDays, since: since, date: composeDateISO(todayDateString()) });
     closeEquipForm();
-    await commitRecord(rec);
+    commitRecordLocal(rec);
+    renderMaintView();
+    await syncRecord(rec);
     renderMaintView();
   }
   async function markEquipServiced(id){
@@ -2989,9 +3071,11 @@
     if(!r) return;
     if(!confirm('Mark "' + r.item + '" as serviced today? Its count starts over from zero.')) return;
     const rec = Object.assign({}, r, { since: todayDateString(), date: composeDateISO(todayDateString()), updatedAt: new Date().toISOString(), submitted: false });
-    await commitRecord(rec);
+    commitRecordLocal(rec);
     renderMaintView();
     showToast('Marked serviced ✓');
+    await syncRecord(rec);
+    renderMaintView();
   }
   function confirmDeleteEquip(id){
     if(confirm('Delete this equipment reminder?')){
@@ -3007,7 +3091,7 @@
     if(!due.length){ el.innerHTML = ''; return; }
     el.innerHTML = due.map(x => {
       const unit = EQUIP_COUNT_LABELS[x.r.counts] || 'jobs';
-      return `<div class="alert-banner ${x.s.state === 'due' ? 'due' : ''}">${x.s.state === 'due' ? '🔧 Service due' : '⚠ Service due soon'}: ${escapeHtml(x.r.item)} — ${x.s.n} of ${x.s.limit} ${unit}</div>`;
+      return `<div class="alert-banner ${x.s.state === 'due' ? 'due' : ''}">${x.s.state === 'due' ? '🔧 Service due' : '⚠ Service due soon'}: ${escapeHtml(x.r.item)} — ${x.s.n} of ${x.s.limit} ${unit}${x.s.limitDays ? ' · ' + x.s.days + ' of ' + x.s.limitDays + ' days' : ''}</div>`;
     }).join('');
   }
 
@@ -3075,7 +3159,9 @@
       ? Object.assign({}, existing, fields, { updatedAt: new Date().toISOString(), submitted: false })
       : newRecord('inventory', fields);
     resetInventoryForm();
-    await commitRecord(rec);
+    commitRecordLocal(rec);
+    renderInventoryList();
+    await syncRecord(rec);
     renderInventoryList();
     showToast(wasEditing ? 'Item updated ✓' : 'Item saved ✓');
   }
@@ -3205,7 +3291,7 @@
            <input id="invBizPhone" placeholder="Phone (optional)" value="${escapeHtml(hdr.phone)}">
            <button class="btn-primary" style="margin:0 0 6px;" onclick="saveInvoiceHeader()">Save header</button>
          </div>`
-      : `<h2>${escapeHtml(hdr.name || 'Roadside Service')}</h2>${hdr.phone ? `<div class="invoice-meta">${escapeHtml(hdr.phone)}</div>` : ''}`;
+      : `<h2>${escapeHtml(hdr.name || 'Keep It Moving')}</h2>${hdr.phone ? `<div class="invoice-meta">${escapeHtml(hdr.phone)}</div>` : ''}`;
     sheet.innerHTML = `
       ${headerHtml}
       <div style="display:flex; justify-content:space-between; align-items:flex-end; margin:14px 0 4px;">
@@ -3234,9 +3320,188 @@
     return d.innerHTML;
   }
 
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Shared lists: provider names and service types (Master edits, everyone reads).
+  // Built-in names are the original hard-coded ones; Master can hide any of them or add more.
+  // A name can only be deleted when no logged job uses it.
+  // ═══════════════════════════════════════════════════════════════════════
+  const OPTIONS_KEY = 'road-service-options';
+  const BASE_PROVIDERS = ['Allstate','Keep It Moving','Honk','Agero','Swoop','Urgently','TRX-now','NSD- Nation Safe Drivers'];
+  let listOptions = [];   // option rows from the Sheet: { id, kind, name, hidden, builtin, submitted }
+
+  function loadOptionsLocal(){
+    try { const raw = localStorage.getItem(OPTIONS_KEY); listOptions = raw ? JSON.parse(raw) : []; } catch(e){ listOptions = []; }
+  }
+  function saveOptionsLocal(){ try { localStorage.setItem(OPTIONS_KEY, JSON.stringify(listOptions)); } catch(e){} }
+  function baseNames(kind){ return kind === 'provider' ? BASE_PROVIDERS : SERVICE_OPTIONS; }
+  function findOption(kind, name){ return listOptions.find(o => o.kind === kind && o.name.toLowerCase() === String(name).toLowerCase()); }
+  function isHiddenName(kind, name){ const o = findOption(kind, name); return !!(o && o.hidden); }
+
+  // Every name for a kind, built-ins first, with its status.
+  function listItems(kind){
+    const items = baseNames(kind).map(n => ({ name: n, builtin: true, hidden: isHiddenName(kind, n), opt: findOption(kind, n) }));
+    listOptions.filter(o => o.kind === kind && !o.builtin && !baseNames(kind).some(n => n.toLowerCase() === o.name.toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach(o => items.push({ name: o.name, builtin: false, hidden: !!o.hidden, opt: o }));
+    return items;
+  }
+  function visibleNames(kind){ return listItems(kind).filter(i => !i.hidden).map(i => i.name); }
+  // Service choices for a dropdown. "keep" is a value that must stay selectable (an old ticket using a hidden service).
+  function serviceChoices(keep){
+    const names = visibleNames('service');
+    if(keep && !names.includes(keep) && keep) names.push(keep);
+    return names;
+  }
+
+  // Rebuilds the Provider dropdown and the Provider Invoice group, keeping whatever is selected.
+  function applyProviderLists(){
+    const names = visibleNames('provider');
+    const provSel = document.getElementById('provider');
+    const payGroup = document.querySelector('#paymentMethod optgroup[label="Provider Invoice"]');
+    if(!provSel || !payGroup) return;
+    const curProv = provSel.value, curPay = document.getElementById('paymentMethod').value;
+    const opts = names.map(n => `<option>${escapeHtml(n)}</option>`).join('');
+    provSel.innerHTML = '<option value="">Select provider…</option>' + opts + '<option value="__custom">Other…</option>';
+    payGroup.innerHTML = opts;
+    if(curProv && Array.from(provSel.options).some(o => o.value === curProv)) provSel.value = curProv;
+    const paySel = document.getElementById('paymentMethod');
+    if(curPay && Array.from(paySel.options).some(o => o.value === curPay)) paySel.value = curPay;
+    refreshServiceSelects();
+  }
+  // Service dropdowns already on the New Ticket form pick up list changes too (keeping each row's current choice).
+  function refreshServiceSelects(){
+    document.querySelectorAll('#serviceRows .svc-select').forEach(sel => {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">Select service…</option>' + serviceChoices(cur).map(n => `<option>${escapeHtml(n)}</option>`).join('');
+      sel.value = cur;
+    });
+  }
+
+  function usageCount(kind, name){
+    const n = String(name).toLowerCase();
+    return entries.filter(e => {
+      if(kind === 'provider') return (e.provider || '').toLowerCase() === n || (e.paymentMethod || '').toLowerCase() === n;
+      return (e.services || []).some(sv => (sv.service || '').toLowerCase() === n);
+    }).length;
+  }
+
+  function mergeOptionsIntoLocal(sheetOpts){
+    if(!sheetOpts) return; // Sheet script too old to know about lists — keep what we have
+    const pending = listOptions.filter(o => o.submitted === false);
+    const out = sheetOpts.filter(o => o && o.id && !pending.some(p => p.id === o.id)).map(o => Object.assign({}, o, { submitted: true }));
+    listOptions = out.concat(pending);
+    saveOptionsLocal();
+    applyProviderLists();
+  }
+
+  async function syncOption(o){
+    if(!apiConfigured() || currentUser !== 'Master') return;
+    try {
+      const c = Object.assign({}, o); delete c.submitted;
+      await postToSheet({ action: 'option_save', option: c });
+      const cur = listOptions.find(x => x.id === o.id);
+      if(cur && cur.updatedAt === o.updatedAt){ cur.submitted = true; saveOptionsLocal(); }
+    } catch(err){ /* offline — stays pending, retried on next sync */ }
+  }
+  async function pushPendingOptions(){
+    if(currentUser !== 'Master') return;
+    for(const o of listOptions.filter(x => x.submitted === false)) await syncOption(o);
+  }
+  function commitOption(o){
+    const i = listOptions.findIndex(x => x.id === o.id);
+    if(i !== -1) listOptions[i] = o; else listOptions.push(o);
+    saveOptionsLocal();
+    applyProviderLists();
+  }
+
+  function listsMessage(text){
+    const el = document.getElementById('listsMsg');
+    el.textContent = text || '';
+    el.classList.toggle('hidden', !text);
+  }
+
+  function renderListsView(){
+    ['provider','service'].forEach(kind => {
+      const box = document.getElementById(kind === 'provider' ? 'listProviders' : 'listServices');
+      box.innerHTML = listItems(kind).map((it, idx) => {
+        const n = usageCount(kind, it.name);
+        const key = encodeURIComponent(it.name);
+        return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #F1E6EC;">
+          <div style="min-width:0;">
+            <div style="font-weight:600; font-size:14px; ${it.hidden ? 'color:var(--faint); text-decoration:line-through;' : ''}">${escapeHtml(it.name)}</div>
+            <div style="font-size:11.5px; color:var(--muted);">${n} job${n === 1 ? '' : 's'}${it.builtin ? ' · built in' : ''}${it.hidden ? ' · hidden' : ''}</div>
+          </div>
+          <div style="display:flex; gap:12px; flex:0 0 auto;">
+            <button class="delete-btn" style="color:var(--blue-light);margin-left:0;" onclick="toggleListHidden('${kind}','${key}')">${it.hidden ? 'Show' : 'Hide'}</button>
+            ${it.builtin ? '' : `<button class="delete-btn" onclick="deleteListItem('${kind}','${key}')">Delete</button>`}
+          </div>
+        </div>`;
+      }).join('');
+    });
+  }
+
+  function addListItem(kind){
+    if(currentUser !== 'Master') return;
+    const input = document.getElementById(kind === 'provider' ? 'newProviderName' : 'newServiceName');
+    const name = input.value.trim().replace(/\s+/g, ' ');
+    if(!name){ listsMessage('Type a name first.'); return; }
+    const existing = listItems(kind).find(i => i.name.toLowerCase() === name.toLowerCase());
+    if(existing){
+      listsMessage(existing.hidden ? '"' + existing.name + '" is already in the list but hidden — tap Show.' : '"' + existing.name + '" is already in the list.');
+      return;
+    }
+    const o = { id: uid(), type: 'option', kind: kind, name: name, hidden: false, builtin: false, owner: 'Master', date: new Date().toISOString(), updatedAt: new Date().toISOString(), submitted: false };
+    input.value = '';
+    listsMessage('');
+    commitOption(o);
+    renderListsView();
+    syncOption(o).then(renderListsView);
+  }
+
+  function toggleListHidden(kind, key){
+    if(currentUser !== 'Master') return;
+    const name = decodeURIComponent(key);
+    const it = listItems(kind).find(i => i.name === name);
+    if(!it) return;
+    const now = new Date().toISOString();
+    const o = it.opt
+      ? Object.assign({}, it.opt, { hidden: !it.hidden, updatedAt: now, submitted: false })
+      : { id: uid(), type: 'option', kind: kind, name: name, hidden: true, builtin: true, owner: 'Master', date: now, updatedAt: now, submitted: false };
+    listsMessage('');
+    commitOption(o);
+    renderListsView();
+    syncOption(o).then(renderListsView);
+  }
+
+  async function deleteListItem(kind, key){
+    if(currentUser !== 'Master') return;
+    const name = decodeURIComponent(key);
+    const it = listItems(kind).find(i => i.name === name);
+    if(!it || it.builtin) return;
+    const n = usageCount(kind, name);
+    if(n > 0){
+      const hide = confirm('You are about to delete "' + name + '". It\'s connected to ' + n + ' job' + (n === 1 ? '' : 's') + ', so it can\'t be deleted.\n\nHide it instead? (Past jobs keep the name; it just leaves the dropdowns.)');
+      if(hide && !it.hidden) toggleListHidden(kind, key);
+      return;
+    }
+    if(!confirm('You are about to delete "' + name + '". It\'s connected to 0 jobs, so it\'s safe to delete.\n\nDelete it?')) return;
+    // The Sheet double-checks the job count, so this needs a connection (it can't be queued for later).
+    try {
+      if(it.opt.submitted !== false) await postToSheet({ action: 'option_delete', id: it.opt.id });
+      listOptions = listOptions.filter(x => x.id !== it.opt.id);
+      saveOptionsLocal();
+      applyProviderLists();
+      listsMessage('Deleted "' + name + '".');
+    } catch(err){
+      listsMessage(err.code === 'in_use' || err.code === 'builtin' ? err.message : 'Could not delete right now (' + (err.message || 'offline') + '). Try again with a connection.');
+    }
+    renderListsView();
+  }
+
   // ── Summary ──
   function zeroTotals(){
-    return { count: 0, revenue: 0, miles: 0, minutes: 0, fuel: 0, gasCost: 0, gallons: 0, tools: 0, expenses: 0, maint: 0, boosts: 0 };
+    return { count: 0, revenue: 0, miles: 0, minutes: 0, fuel: 0, gasCost: 0, gallons: 0, tools: 0, expenses: 0, maint: 0, boosts: 0, services: 0, multi: 0 };
   }
   function delta(obj){ return Object.assign(zeroTotals(), obj); }
   function addInto(target, d){ Object.keys(d).forEach(k => { target[k] += d[k]; }); }
@@ -3246,6 +3511,86 @@
     const mLabel = d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     const q = Math.floor(d.getMonth() / 3) + 1;
     return { mKey: mKey, mLabel: mLabel, qKey: d.getFullYear() + '-Q' + q, qLabel: 'Q' + q + ' ' + d.getFullYear() };
+  }
+
+  let summaryAll = { svc: {}, make: {} };
+  let openMakes = new Set();
+
+  // A call's real services: every line except a Discount.
+  function realServiceCount(e){ return (e.services || []).filter(sv => sv.service && sv.service !== 'Discount').length; }
+
+  function canonMake(m){
+    m = (m || '').trim();
+    if(!m) return 'Not recorded';
+    const hit = Object.keys(MAKE_MODELS).find(k => k.toLowerCase() === m.toLowerCase());
+    return hit || m.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  }
+  function canonModel(m, make){
+    m = (m || '').trim();
+    if(!m) return 'Not recorded';
+    const list = MAKE_MODELS[make] || [];
+    return list.find(x => x.toLowerCase() === m.toLowerCase()) || m;
+  }
+
+  // Adds one call to a bucket's by-service and by-make tallies.
+  function addDetail(p, e, regionKey){
+    const lines = (e.services || []).filter(sv => sv.service);
+    lines.forEach(sv => {
+      const t = p.svc[sv.service] || (p.svc[sv.service] = { count: 0, revenue: 0, regions: {} });
+      t.count++; t.revenue += (sv.price || 0);
+      t.regions[regionKey] = (t.regions[regionKey] || 0) + 1;
+    });
+    const mk = canonMake(e.vehicleMake);
+    const m = p.make[mk] || (p.make[mk] = { count: 0, revenue: 0, models: {}, svc: {} });
+    m.count++; m.revenue += (e.totalPrice || 0);
+    const mdl = canonModel(e.vehicleModel, mk);
+    const mm = m.models[mdl.toLowerCase()] || (m.models[mdl.toLowerCase()] = { label: mdl, count: 0, revenue: 0 });
+    mm.count++; mm.revenue += (e.totalPrice || 0);
+    lines.forEach(sv => { if(sv.service !== 'Discount') m.svc[sv.service] = (m.svc[sv.service] || 0) + 1; });
+  }
+
+  function renderServiceBreakdown(svc){
+    const keys = Object.keys(svc).sort((a, b) => svc[b].count - svc[a].count || svc[b].revenue - svc[a].revenue);
+    if(!keys.length) return '<div class="no-data">No services yet.</div>';
+    return keys.map(k => {
+      const t = svc[k];
+      const regs = currentUser === 'Master' ? Object.keys(t.regions).sort() : [];
+      const regLine = regs.length > 1 ? `<span class="v-jobs">${regs.map(r => escapeHtml(r) + ' ' + t.regions[r]).join(' · ')}</span>` : '';
+      return `<div class="breakdown-row"><span class="k">${escapeHtml(k)}</span><span class="v-stack"><span class="v-jobs">${t.count} · ${fmtMoney(t.revenue)}</span>${regLine}</span></div>`;
+    }).join('');
+  }
+
+  // Which cars we work on. Follows the Month Rundown picker (no month picked = all time).
+  function toggleMake(i){
+    const k = decodeURIComponent(i);
+    if(openMakes.has(k)) openMakes.delete(k); else openMakes.add(k);
+    renderMakeReport();
+  }
+  function renderMakeReport(){
+    const box = document.getElementById('byMake');
+    const key = document.getElementById('sumMonthSelect').value;
+    const src = (key && summaryMonths[key]) ? summaryMonths[key] : summaryAll;
+    document.getElementById('makeScope').textContent = (key && summaryMonths[key]) ? summaryMonths[key].label : 'All time';
+    const makes = Object.keys(src.make);
+    if(!makes.length){ box.innerHTML = '<div class="no-data">No data yet.</div>'; return; }
+    // "Not recorded" always sits last so it never hides a real make.
+    makes.sort((a, b) => (a === 'Not recorded') - (b === 'Not recorded') || src.make[b].count - src.make[a].count || src.make[b].revenue - src.make[a].revenue);
+    box.innerHTML = makes.map(mk => {
+      const m = src.make[mk];
+      const open = openMakes.has(mk);
+      const models = Object.values(m.models).sort((a, b) => (a.label === 'Not recorded') - (b.label === 'Not recorded') || b.count - a.count);
+      const svcKeys = Object.keys(m.svc).sort((a, b) => m.svc[b] - m.svc[a]);
+      const detail = open ? `<div style="padding:2px 0 8px 12px; font-size:12.5px; color:var(--muted);">
+          ${models.map(x => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span>${escapeHtml(x.label)}</span><span>${x.count} · ${fmtMoney(x.revenue)}</span></div>`).join('')}
+          ${svcKeys.length ? `<div style="margin-top:6px; font-weight:700; color:var(--text);">Services on ${escapeHtml(mk)}</div>
+          ${svcKeys.map(sk => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span>${escapeHtml(sk)}</span><span>${m.svc[sk]}</span></div>`).join('')}` : ''}
+        </div>` : '';
+      return `<div style="border-bottom:1px solid #F1E6EC;">
+        <div class="breakdown-row" style="cursor:pointer; border-bottom:none;" onclick="toggleMake('${encodeURIComponent(mk)}')">
+          <span class="k">${open ? '▾' : '▸'} ${escapeHtml(mk)}</span>
+          <span class="v-stack"><span class="v-jobs">${m.count} job${m.count === 1 ? '' : 's'}</span><span class="v-revenue">${fmtMoney(m.revenue)}</span></span>
+        </div>${detail}</div>`;
+    }).join('');
   }
 
   let summaryMonths = {};   // month key -> period totals, kept so the Month Rundown can redraw without recomputing
@@ -3261,11 +3606,12 @@
     const byRegion = {};
     const byMonth = {}, byQuarter = {};
     const totals = zeroTotals();
+    const allDetail = { svc: {}, make: {} };
 
     // A period bucket holds every money/time total, plus the same split by region
     // (the region split is what Master sees: Tallahassee vs Central FL side by side).
     function bump(map, key, label, regionKey, d){
-      if(!map[key]) map[key] = Object.assign({ label: label, regions: {} }, zeroTotals());
+      if(!map[key]) map[key] = Object.assign({ label: label, regions: {}, svc: {}, make: {} }, zeroTotals());
       const p = map[key];
       addInto(p, d);
       if(!p.regions[regionKey]) p.regions[regionKey] = zeroTotals();
@@ -3314,8 +3660,11 @@
       post(d, regionKey, delta({
         count: 1, revenue: (e.totalPrice || 0), miles: (parseFloat(e.miles) || 0),
         minutes: (jobMinutes(e) || 0), fuel: useEstimate ? (e.fuelCostEstimate || 0) : 0,
-        gasCost: gasCost, gallons: gallons, boosts: boosts
+        gasCost: gasCost, gallons: gallons, boosts: boosts,
+        services: realServiceCount(e), multi: realServiceCount(e) >= 2 ? 1 : 0
       }));
+      addDetail(allDetail, e, regionKey);
+      if(!isNaN(d)){ const mk = periodKeysFor(d).mKey; if(byMonth[mk]) addDetail(byMonth[mk], e, regionKey); }
     });
 
     // Everything else lands in the month/quarter of its own date (backdating moves it).
@@ -3335,6 +3684,8 @@
     const costs = totalCosts(totals);
     const net = totals.revenue - costs;
     document.getElementById('sumJobs').textContent = totals.count;
+    document.getElementById('sumServices').textContent = totals.services;
+    document.getElementById('sumMulti').textContent = totals.multi;
     document.getElementById('sumRevenue').textContent = fmtMoney(totals.revenue);
     document.getElementById('sumAvg').textContent = fmtMoney(totals.count ? totals.revenue / totals.count : 0);
     document.getElementById('sumMiles').textContent = totals.miles.toFixed(1);
@@ -3364,6 +3715,7 @@
 
     // Month Rundown: all-time totals stay on top; picking a month shows just that month.
     summaryMonths = byMonth;
+    summaryAll = allDetail;
     const sel = document.getElementById('sumMonthSelect');
     const previous = sel.value;
     const keys = Object.keys(byMonth).sort().reverse();
@@ -3379,6 +3731,7 @@
     if(!p){
       box.className = 'no-data';
       box.textContent = Object.keys(summaryMonths).length ? 'Pick a month to see just that month\'s totals.' : 'No data yet.';
+      renderMakeReport();
       return;
     }
     box.className = '';
@@ -3388,6 +3741,8 @@
     const costRow = (k, v) => v > 0 ? row(k, '−' + fmtMoney(v)) : '';
     let html = row('Jobs', p.count)
       + row('Revenue', fmtMoney(p.revenue))
+      + row('Services performed', p.services)
+      + row('Calls with 2+ services', p.multi)
       + row('Avg call', fmtMoney(p.count ? p.revenue / p.count : 0))
       + row('Miles', p.miles.toFixed(1))
       + (p.minutes > 0 ? row('Hours logged', fmtHours(p.minutes)) : '')
@@ -3400,8 +3755,10 @@
       + costRow('Vehicle maintenance', p.maint)
       + row('Total costs', '−' + fmtMoney(costs))
       + row('<b>Net after all costs</b>', '<b>' + fmtMoney(net) + '</b>', netClass(net));
+    html += '<div class="breakdown-title" style="margin-top:14px;">Services this month</div>' + renderServiceBreakdown(p.svc || {});
     if(currentUser === 'Master') html += '<div style="margin-top:10px;">' + renderTimeBreakdownByRegion({ [key]: p }) + '</div>';
     box.innerHTML = html;
+    renderMakeReport();
   }
 
   function renderCountRevenueBreakdown(obj){
@@ -3610,6 +3967,9 @@
     resetToolForm();
     resetExpenseForm(); resetMaintForm(); resetInventoryForm(); closeEquipForm();
     loadLocal();          // instant — always works, even with zero signal
+    applyProviderLists();
+    document.getElementById('listsTab').classList.toggle('hidden', currentUser !== 'Master');
+    if(currentUser !== 'Master' && !document.getElementById('view-lists').classList.contains('hidden')) setView('log');
     updateHeaderCount();
     renderLog();
     syncWithSheet().then(() => {   // background sync — updates the view when/if it succeeds
