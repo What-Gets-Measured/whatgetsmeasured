@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{color-scheme:light}body{margin:0}</style>
 <meta name="robots" content="noindex, nofollow">
 <title>BV Build Pricer</title>
-<style>html{color-scheme:light}body{margin:0}</style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: saved products on top, settings, one product form (single + bulk setups), then three channel cards that each carry their own result. */
@@ -124,15 +124,6 @@ ul.notes li.w{color:var(--warn)}
     <div id="sheetRows"></div>
     <button class="btn" id="btnAddSheet" type="button" data-act="add-sheet">Add sheet type</button>
     <p class="hint">Add one row for each size and thickness you buy, like 12x16 3mm or 12x12 1.6mm.</p>
-    <h3>Machine reserve rate ($ per machine hour, by job type)</h3>
-    <div class="grid">
-      <label>Cutting<input data-s="wear.cut" type="number" step="0.25" min="0" placeholder="0"></label>
-      <label>Engraving<input data-s="wear.engrave" type="number" step="0.25" min="0" placeholder="0"></label>
-      <label>Scoring<input data-s="wear.score" type="number" step="0.25" min="0" placeholder="0"></label>
-      <label>Color print<input data-s="wear.color" type="number" step="0.25" min="0" placeholder="0"></label>
-      <label>Mug rotary<input data-s="wear.mug" type="number" step="0.25" min="0" placeholder="0"></label>
-    </div>
-    <p class="hint">Set each rate by dividing the amount you want saved by the machine hours it should take to save it. For example, $300 over 1,000 hours is $0.30 an hour. Move that money to a separate account as you sell.</p>
     <h3>Fees (% of the selling price)</h3>
     <div class="grid">
       <label>Retail (booth, card)<input data-s="fees.retail" type="number" step="0.5" min="0" placeholder="0"></label>
@@ -224,7 +215,6 @@ function calc(s,p,mode,qty){
   if(!miss.length && machTotal+hands<=0) miss.push('laser or hands-on time');
   if(miss.length) return {ok:false,missing:miss};
   var machHrs=machTotal/60, wearTot=0;
-  TYPES.forEach(function(t){wearTot+=(machMins[t]/60)*nn((s.wear||{})[t])});
   wearTot+=wp*machHrs*rate*att;
   var matTot=sheetsCeil*price+(mode==='bulk'?Q:1)*extras;
   var hrsTot=machHrs*att+hands/60;
@@ -282,7 +272,7 @@ var SETUP_FIELDS=[
 ];
 function defSettings(){return {rate:'50',attended:'100',round:'0',wearPct:'',
   sheets:[{id:'s1',name:'12x16 basswood',price:'1.75'}],
-  wear:{cut:'',engrave:'',score:'',color:'',mug:''},fees:{retail:'',wholesale:'',fundraiser:''}}}
+  fees:{retail:'',wholesale:'',fundraiser:''}}}
 function blankCh(){return {mode:'',qty:'',price:'',target:'',deposit:'',lead:'',minQty:'',floor:''}}
 function blankProduct(){
   var sid=(db&&db.settings&&db.settings.sheets[0])?db.settings.sheets[0].id:'s1';
@@ -408,7 +398,7 @@ function resHtml(key,x){
     h+='<tr class="'+(x.pass?'good':'bad')+'"><td>'+(x.pass?'Profit left over':'Shortfall')+'</td><td>'+$(x.profit)+'</td><td>'+$(x.profit*q)+'</td></tr>'+
        '<tr class="total"><td>You take in</td><td>'+$(x.P)+'</td><td>'+$(x.P*q)+'</td></tr></table>';
     if(r.wear>0.0005) h+='<div class="reserve">Move '+$(r.wear*q)+' to your machine reserve for this order ('+$(r.wear)+' per piece).</div>';
-    else h+='<p class="hint">Set a machine reserve rate in Settings to see what to move to your reserve.</p>';
+    else h+='<p class="hint">Enter the reserve % in Settings to see what to move to your reserve.</p>';
   }
   var n=[];
   if(x.hint) n.push('<li class="w">'+x.hint+'</li>');
