@@ -81,6 +81,12 @@ ul.notes li{margin:3px 0}
 ul.notes li.w{color:var(--warn)}
 .sheetrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;margin-bottom:8px;align-items:end}
 #msg{font-size:13px;color:var(--muted)}
+.split th{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:4px 0;border-bottom:1px solid var(--line)}
+.split td+td,.split th+th{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.split th+th{font-family:var(--display)}
+.split tr.good td{color:var(--good);font-weight:700}
+.split tr.bad td{color:var(--bad);font-weight:700}
+.reserve{margin-top:10px;border:1px dashed var(--accent);border-radius:6px;padding:8px 12px;font-size:13px}
 </style>
 </head>
 <body>
@@ -112,13 +118,13 @@ ul.notes li.w{color:var(--warn)}
           <option value="1">Next $1.00</option>
         </select>
       </label>
-      <label>Wear, % of machine-time cost (optional)<input data-s="wearPct" type="number" step="1" min="0" placeholder="0"></label>
+      <label>Reserve, % of machine-time cost (optional)<input data-s="wearPct" type="number" step="1" min="0" placeholder="0"></label>
     </div>
     <h3>Sheet types ($ per sheet)</h3>
     <div id="sheetRows"></div>
     <button class="btn" id="btnAddSheet" type="button" data-act="add-sheet">Add sheet type</button>
     <p class="hint">Add one row for each size and thickness you buy, like 12x16 3mm or 12x12 1.6mm.</p>
-    <h3>Machine wear rate ($ per machine hour, by job type)</h3>
+    <h3>Machine reserve rate ($ per machine hour, by job type)</h3>
     <div class="grid">
       <label>Cutting<input data-s="wear.cut" type="number" step="0.25" min="0" placeholder="0"></label>
       <label>Engraving<input data-s="wear.engrave" type="number" step="0.25" min="0" placeholder="0"></label>
@@ -126,6 +132,7 @@ ul.notes li.w{color:var(--warn)}
       <label>Color print<input data-s="wear.color" type="number" step="0.25" min="0" placeholder="0"></label>
       <label>Mug rotary<input data-s="wear.mug" type="number" step="0.25" min="0" placeholder="0"></label>
     </div>
+    <p class="hint">Set each rate by dividing the amount you want saved by the machine hours it should take to save it. For example, $300 over 1,000 hours is $0.30 an hour. Move that money to a separate account as you sell.</p>
     <h3>Fees (% of the selling price)</h3>
     <div class="grid">
       <label>Retail (booth, card)<input data-s="fees.retail" type="number" step="0.5" min="0" placeholder="0"></label>
@@ -383,7 +390,7 @@ function row(l,v){return '<tr><td>'+l+'</td><td>'+v+'</td></tr>'}
 function resHtml(key,x){
   if(!x.ok) return '<div class="check none" style="margin-top:12px">Still needed: '+x.missing.join(', ')+'.</div>';
   var r=x.r, rate=db.settings.rate||'0';
-  var h='<table>'+row('Materials',$(r.mat))+row('Machine wear',$(r.wear))+
+  var h='<table>'+row('Materials',$(r.mat))+row('Machine reserve',$(r.wear))+
     row('Your labor ('+(r.hpp*60).toFixed(1)+' min)',$(r.labor))+row('Design share',$(r.design))+
     '<tr class="total"><td>Cost per piece</td><td>'+$(r.cost)+'</td></tr></table>';
   h+='<div class="be"><small>Break-even price'+(x.fee>0?' after '+(x.fee*100).toFixed(1).replace(/\.0$/,'')+'% fee':'')+'</small><b>'+$(x.beR)+'</b></div>';
@@ -392,6 +399,16 @@ function resHtml(key,x){
   } else {
     h+='<div class="check '+(x.pass?'pass':'fail')+'">'+(x.pass?'Clears $'+esc(rate)+' per hour':'Below $'+esc(rate)+' per hour')+
       '<span class="num">'+$(x.profit)+' per piece</span><span class="note">'+$(x.profit*x.oq)+' on '+x.oq+' piece'+(x.oq===1?'':'s')+'</span></div>';
+  }
+  if(x.hasP){
+    var q=x.oq, feeD=x.P*x.fee;
+    var lines=[['Your pay',r.labor,1],['Design time',r.design,0],['Materials repaid',r.mat,1],['Machine reserve',r.wear,0],['Fees',feeD,0]];
+    h+='<h3>Where the money goes</h3><table class="split"><tr><th></th><th>Per piece</th><th>Order of '+q+'</th></tr>';
+    lines.forEach(function(L){if(L[2]||L[1]>0.0005) h+='<tr><td>'+L[0]+'</td><td>'+$(L[1])+'</td><td>'+$(L[1]*q)+'</td></tr>'});
+    h+='<tr class="'+(x.pass?'good':'bad')+'"><td>'+(x.pass?'Profit left over':'Shortfall')+'</td><td>'+$(x.profit)+'</td><td>'+$(x.profit*q)+'</td></tr>'+
+       '<tr class="total"><td>You take in</td><td>'+$(x.P)+'</td><td>'+$(x.P*q)+'</td></tr></table>';
+    if(r.wear>0.0005) h+='<div class="reserve">Move '+$(r.wear*q)+' to your machine reserve for this order ('+$(r.wear)+' per piece).</div>';
+    else h+='<p class="hint">Set a machine reserve rate in Settings to see what to move to your reserve.</p>';
   }
   var n=[];
   if(x.hint) n.push('<li class="w">'+x.hint+'</li>');
