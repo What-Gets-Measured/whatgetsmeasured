@@ -202,8 +202,10 @@ var HINT={
 function pt(v){
   v=String(v==null?'':v).trim(); if(!v) return 0;
   if(v.indexOf(':')<0){var n=parseFloat(v);return isFinite(n)?n:0}
-  var a=v.split(':').map(function(x){x=x.trim();return x===''?0:parseFloat(x)});
+  var raw=v.split(':').map(function(x){return x.trim()});
+  var a=raw.map(function(x){return x===''?0:parseFloat(x)});
   for(var i=0;i<a.length;i++){if(!isFinite(a[i])) return 0}
+  if(raw[raw.length-1].length===1) a[a.length-1]*=10;
   if(a.length===3) return a[0]*60+a[1]+a[2]/60;
   if(a.length===2) return a[0]+a[1]/60;
   return 0;
