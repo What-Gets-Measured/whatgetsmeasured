@@ -4,183 +4,201 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html{color-scheme:light}body{margin:0}</style>
-<meta name="robots" content="noindex, nofollow">
 <title>BV Build Pricer</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;700&display=swap">
 <style>
-/* Layout: saved products on top, settings, one product form (single + bulk setups), then three channel cards that each carry their own result. */
+/* Layout: saved products, shared settings, one product with one run of it, then four channel cards that each answer whether the price clears the hourly rate. */
 :root{
-  --bg:#f2f5f4; --panel:#ffffff; --ink:#14201e; --muted:#5b6b68; --line:#d5dedb;
-  --accent:#0b6e63; --accent-ink:#ffffff; --good:#1f7a3d; --bad:#b3261e; --warn:#a85a12;
-  --good-bg:#e3f2e7; --bad-bg:#fbe7e5;
-  --display:'Archivo','Helvetica Neue',Arial,sans-serif;
-  --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --bg:#f2f4f2; --panel:#ffffff; --ink:#14201e; --muted:#566763; --line:#d2dbd8;
+  --accent:#0b6e63; --accent-ink:#ffffff; --good:#1f7a3d; --bad:#b3261e; --warn:#955012; --need:#c4690a;
+  --good-bg:#e1f0e5; --bad-bg:#fbe5e2;
+  --sans:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0f1716; --panel:#172221; --ink:#e6efed; --muted:#93a6a2; --line:#2a3b39;
-  --accent:#4fc3b3; --accent-ink:#06201c; --good:#6fd08c; --bad:#ff8a80; --warn:#f0a35a;
-  --good-bg:#16301f; --bad-bg:#3a1a18; color-scheme:dark}}
+  --bg:#0e1615; --panel:#162120; --ink:#e5eeec; --muted:#92a5a1; --line:#293a38;
+  --accent:#4fc3b3; --accent-ink:#06201c; --good:#6fd08c; --bad:#ff8a80; --warn:#f0a35a; --need:#f0a35a;
+  --good-bg:#15301e; --bad-bg:#3a1a18; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1716; --panel:#172221; --ink:#e6efed; --muted:#93a6a2; --line:#2a3b39;
-  --accent:#4fc3b3; --accent-ink:#06201c; --good:#6fd08c; --bad:#ff8a80; --warn:#f0a35a;
-  --good-bg:#16301f; --bad-bg:#3a1a18; color-scheme:dark}
+  --bg:#0e1615; --panel:#162120; --ink:#e5eeec; --muted:#92a5a1; --line:#293a38;
+  --accent:#4fc3b3; --accent-ink:#06201c; --good:#6fd08c; --bad:#ff8a80; --warn:#f0a35a; --need:#f0a35a;
+  --good-bg:#15301e; --bad-bg:#3a1a18; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--display);font-size:15px;line-height:1.45;
-  padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;
+  padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:1100px;margin:0 auto}
-h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
-.sub{color:var(--muted);margin:0 0 18px;max-width:70ch}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;margin-top:16px}
+h1{font-size:28px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 6px;max-width:70ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;margin-top:16px;min-width:0}
 h2{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
 h3{font-size:13px;font-weight:700;margin:16px 0 8px}
 summary{cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
 details[open]>summary{margin-bottom:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
-.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
-.two>.panel{margin-top:16px}
 .chs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;align-items:start}
 .chs>.panel{margin-top:0}
 label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+label.chk{flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:9px;color:var(--ink)}
+label.chk input{width:auto}
 input,select,textarea{font:inherit;font-family:var(--mono);font-size:15px;color:var(--ink);background:var(--bg);
   border:1px solid var(--line);border-radius:4px;padding:8px 10px;width:100%;min-width:0}
 textarea{font-size:12px;min-height:90px}
+input.need,select.need{border-color:var(--need);box-shadow:0 0 0 1px var(--need)}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .pm{font-family:var(--mono);font-size:11px;color:var(--muted);min-height:14px}
-.hint{font-size:12px;color:var(--muted);margin:10px 0 0}
-.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.hint{font-size:12px;color:var(--muted);margin:0 0 12px}
+.hint.tight{margin:10px 0 0}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .bar h2{margin:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .btn{font:inherit;font-weight:700;font-size:14px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;cursor:pointer}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
-.btn:disabled{opacity:.45;cursor:default}
-.saved{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
+.discard{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--warn);border-radius:6px;padding:10px 12px;margin-bottom:12px;color:var(--warn);font-weight:600}
+.saved{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .sp{border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .sp b{font-size:15px;overflow-wrap:anywhere}
 .sp small{color:var(--muted)}
-.chip{font-family:var(--mono);font-size:12px;border-radius:4px;padding:4px 8px;display:block}
+.chip{font-family:var(--mono);font-size:12px;border-radius:4px;padding:4px 8px;display:block;background:var(--bg);color:var(--muted)}
 .chip.pass{background:var(--good-bg);color:var(--good)}
 .chip.fail{background:var(--bad-bg);color:var(--bad)}
-.chip.none{background:var(--bg);color:var(--muted)}
-.empty{color:var(--muted);font-size:14px;margin:12px 0 0}
+.empty{color:var(--muted);font-size:14px;margin:0}
 table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
 td{padding:5px 0;border-bottom:1px solid var(--line)}
 td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 tr.total td{font-weight:700;border-bottom:0;padding-top:8px}
 .be{margin-top:12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .be small{color:var(--muted);font-size:13px}
-.be b{font-family:var(--mono);font-size:26px;font-weight:600}
+.be b{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
 .check{margin-top:12px;border-radius:6px;padding:10px 12px;font-weight:700}
 .check.pass{background:var(--good-bg);color:var(--good)}
 .check.fail{background:var(--bad-bg);color:var(--bad)}
 .check.none{background:var(--bg);color:var(--muted);font-weight:500}
-.check .num{font-family:var(--mono);font-size:20px;display:block;margin-top:2px}
+.check.need{background:var(--bg);color:var(--need);font-weight:600;border:1px dashed var(--need)}
+.check .num{font-family:var(--mono);font-size:20px;display:block;margin-top:2px;font-variant-numeric:tabular-nums}
 .check .note{display:block;font-weight:500;font-size:13px;margin-top:2px;color:var(--ink)}
 ul.notes{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--muted)}
 ul.notes li{margin:3px 0}
 ul.notes li.w{color:var(--warn)}
-.sheetrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;margin-bottom:8px;align-items:end}
-#msg{font-size:13px;color:var(--muted)}
 .split th{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:4px 0;border-bottom:1px solid var(--line)}
 .split td+td,.split th+th{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
-.split th+th{font-family:var(--display)}
+.split th+th{font-family:var(--sans)}
 .split tr.good td{color:var(--good);font-weight:700}
 .split tr.bad td{color:var(--bad);font-weight:700}
 .reserve{margin-top:10px;border:1px dashed var(--accent);border-radius:6px;padding:8px 12px;font-size:13px}
+.derived{font-family:var(--mono);font-size:13px;color:var(--accent);margin:12px 0 0;min-height:18px}
+#msg,#where{font-size:13px;color:var(--muted)}
+#where{margin:10px 0 0}
 </style>
 </head>
 <body>
+
 <div class="wrap">
   <h1>BV Build Pricer</h1>
-  <p class="sub">Your $50 per hour is paid as a cost. A price passes when it covers materials, wear, your time and design, and everything above that is profit. Product fields start blank on purpose, so nothing is guessed for you.</p>
+  <p class="sub">Your hourly rate is paid as a cost. A price clears when it covers wood, machine reserve, your time and design. Whatever is left above that is profit.</p>
 
   <section class="panel" id="savedPanel">
     <div class="bar">
       <h2>Saved products</h2>
-      <div class="btns">
-        <button class="btn" id="btnNew" type="button">New product</button>
-        <button class="btn" id="btnExample" type="button">Load ornament example</button>
-      </div>
+      <div class="btns"><button class="btn" id="btnNew" type="button">New product</button></div>
+    </div>
+    <div class="discard" id="discard" hidden>
+      <span>You have changes that are not saved.</span>
+      <button class="btn danger" id="btnDiscard" type="button">Discard changes</button>
+      <button class="btn" id="btnKeep" type="button">Keep editing</button>
     </div>
     <div id="savedList" class="saved"></div>
   </section>
 
-  <details class="panel" id="settingsPanel" open>
-    <summary>Settings (enter once)</summary>
+  <section class="panel">
+    <h2>Shared settings</h2>
     <div class="grid">
-      <label>Labor rate ($ per hour)<input data-s="rate" type="number" step="1" min="0"></label>
-      <label>Machine time you are tied to (%)<input data-s="attended" type="number" step="5" min="0" max="100"></label>
-      <label>Round break-even price up to
-        <select data-s="round">
-          <option value="0">Exact cents</option>
-          <option value="0.25">Next $0.25</option>
-          <option value="0.5">Next $0.50</option>
-          <option value="1">Next $1.00</option>
-        </select>
-      </label>
-      <label>Reserve, % of machine-time cost (optional)<input data-s="wearPct" type="number" step="1" min="0" placeholder="0"></label>
+      <label>Labor rate ($ per hour)<input id="s-rate" data-s="rate" type="number" step="1" min="0"></label>
+      <label>Machine reserve (% of machine-time cost)<input id="s-reserve" data-s="reserve" type="number" step="1" min="0"></label>
+      <label>Card fee (%)<input id="s-cardFee" data-s="cardFee" type="number" step="0.5" min="0"></label>
+      <label>Time you are tied to the machine (%)<input id="s-attended" data-s="attended" type="number" step="5" min="0" max="100"></label>
     </div>
-    <h3>Sheet types ($ per sheet)</h3>
-    <div id="sheetRows"></div>
-    <button class="btn" id="btnAddSheet" type="button" data-act="add-sheet">Add sheet type</button>
-    <p class="hint">Add one row for each size and thickness you buy, like 12x16 3mm or 12x12 1.6mm.</p>
-    <h3>Fees (% of the selling price)</h3>
-    <div class="grid">
-      <label>Retail (booth, card)<input data-s="fees.retail" type="number" step="0.5" min="0" placeholder="0"></label>
-      <label>Wholesale<input data-s="fees.wholesale" type="number" step="0.5" min="0" placeholder="0"></label>
-      <label>Fundraiser<input data-s="fees.fundraiser" type="number" step="0.5" min="0" placeholder="0"></label>
-    </div>
-  </details>
+  </section>
 
   <section class="panel">
     <h2>Product</h2>
     <div class="grid">
-      <label>Product name<input data-k="name" type="text" placeholder="Coaster, lantern, ornament"></label>
-      <label>BV design ID<input data-k="designId" type="text" placeholder="LD4"></label>
-      <label>Sheet type<select data-k="sheetType" id="sheetSelect"></select></label>
-      <label>Extra materials per piece ($)<input data-k="extras" type="number" step="0.05" min="0" placeholder="hardware, tassel, tea light, ink, packaging"></label>
+      <label>Product name<input id="k-name" data-k="name" type="text" placeholder="Ornament, lantern base, coaster"></label>
+      <label>BV design ID (optional)<input id="k-designId" data-k="designId" type="text" placeholder="LD4"></label>
+      <label>Material<select id="k-material" data-k="material"></select></label>
+      <label>Size (optional)
+        <select id="k-size" data-k="size">
+          <option value="">No size</option><option value="12x16">12 x 16</option><option value="12x12">12 x 12</option><option value="8x11">8 x 11</option>
+        </select>
+      </label>
+      <label>Price per sheet or blank ($)<input id="k-price" data-k="price" type="number" step="0.05" min="0"></label>
+      <label>Extra materials per piece ($, optional)<input id="k-extras" data-k="extras" type="number" step="0.05" min="0" placeholder="tassel, hardware, tea light"></label>
     </div>
-    <p class="hint">Time fields accept minutes (62.8), minutes and seconds (62:49) or hours, minutes and seconds (1:02:49).</p>
+    <div class="grid" id="customRow" hidden style="margin-top:12px">
+      <label>New material name<input id="k-matCustom" data-k="matCustom" type="text" placeholder="Cork, felt, walnut"></label>
+      <div class="btns" style="align-self:end"><button class="btn" id="btnAddMat" type="button">Add to the list</button></div>
+    </div>
   </section>
 
-  <div class="two" id="setups"></div>
-
-  <details class="panel">
-    <summary>Advanced</summary>
+  <section class="panel">
+    <h2>One run of this product</h2>
+    <p class="hint">Enter one real run you cut, such as 7 sheets that made 6 bases. Every channel below is worked out from it. Times accept minutes (62.8), minutes and seconds (62:49) or hours, minutes and seconds (1:02:49).</p>
     <div class="grid">
-      <label>Design time (hours, one time)<input data-k="designHrs" type="number" step="0.5" min="0"></label>
-      <label>Pieces you expect to sell, lifetime<input data-k="lifetime" type="number" step="1" min="0"></label>
-      <label>Defect or remake rate (%)<input data-k="defect" type="number" step="1" min="0" placeholder="0"></label>
-      <label>Wait time per batch (not billed)<input data-k="waitMin" type="text" placeholder="primer cure, sealer dry"></label>
+      <label>Sheets used in the run<input id="k-sheetsUsed" data-k="sheetsUsed" type="number" step="0.05" min="0"></label>
+      <label>Pieces the run makes<input id="k-pieces" data-k="pieces" type="number" step="1" min="0"></label>
+      <label>Laser time for the whole run<input id="k-laser" data-k="laser" type="text" data-t="1" placeholder="1:02:49"><span class="pm"></span></label>
+      <label>Load and unload, per sheet<input id="k-load" data-k="load" type="text" data-t="1" placeholder="1:30"><span class="pm"></span></label>
+      <label>Setup, once per order<input id="k-setup" data-k="setup" type="text" data-t="1" placeholder="5"><span class="pm"></span></label>
+      <label>Finishing, per piece (optional)<input id="k-finish" data-k="finish" type="text" data-t="1"><span class="pm"></span></label>
+      <label>Assembly, per piece<input id="k-assembly" data-k="assembly" type="text" data-t="1"><span class="pm"></span></label>
+      <label>Packing, per piece<input id="k-pack" data-k="pack" type="text" data-t="1"><span class="pm"></span></label>
     </div>
-    <p class="hint">Design cost is spread over lifetime pieces across every channel. Wait time is a reminder only and is not charged.</p>
-  </details>
+    <div class="derived" id="derived"></div>
+    <details style="margin-top:14px">
+      <summary>Optional: remakes and design time</summary>
+      <div class="grid">
+        <label>Remake rate (%)<input id="k-defect" data-k="defect" type="number" step="1" min="0"></label>
+        <label>Design time (hours, one time)<input id="k-designHrs" data-k="designHrs" type="number" step="0.5" min="0"></label>
+        <label>Pieces you expect to sell, lifetime<input id="k-lifetime" data-k="lifetime" type="number" step="1" min="0"></label>
+      </div>
+    </details>
+  </section>
 
   <h2 style="margin-top:20px">Channels</h2>
   <div class="chs" id="chs"></div>
 
   <section class="panel">
-    <div class="bar">
-      <div class="btns">
-        <button class="btn primary" id="btnSave" type="button">Save product</button>
-        <button class="btn" id="btnCopy" type="button">Save as copy</button>
-        <span id="msg" aria-live="polite"></span>
-      </div>
+    <div class="btns">
+      <button class="btn primary" id="btnSave" type="button">Save product</button>
+      <button class="btn" id="btnCopy" type="button">Save as copy</button>
+      <button class="btn" id="btnXls" type="button">Copy for Excel</button>
+      <span id="msg" aria-live="polite"></span>
     </div>
-    <p class="hint">Products are saved in this browser on this device. They do not sync between your phone and computer. Use the backup below to move them.</p>
+    <p id="where"></p>
     <details style="margin-top:12px">
       <summary>Backup</summary>
       <div class="btns" style="margin-bottom:8px">
         <button class="btn" id="btnShowBk" type="button">Show backup text</button>
-        <button class="btn" id="btnCopyBk" type="button">Copy</button>
         <button class="btn" id="btnRestore" type="button">Restore from text</button>
       </div>
-      <textarea id="bk" placeholder="Backup text appears here. To restore, paste it here and press Restore."></textarea>
+      <textarea id="bk" placeholder="Backup text, or the Excel rows, appear here. To restore, paste a backup here and press Restore."></textarea>
     </details>
   </section>
 </div>
 
-<script id="core">
+<script>
+(function(){
+var BASE_MATERIALS=['Basswood 3mm','Basswood 1.6mm','Slate square coaster','Slate round coaster','Stickers','Acrylic','Leather','Cardstock'];
+var CH=[['single','Single piece','single'],['bulk','Bulk','bulk'],['fundraiser','Fundraiser','min'],['wholesale','Wholesale','min']];
+var HINT={
+  single:'One piece. Wood and laser time are a share of your run, unless you type the sheets one piece really takes.',
+  bulk:'Type how many sheets you will cut. Pieces, time and wood come from your run.',
+  fundraiser:'Type the minimum order. Sheets and time scale up from your run.',
+  wholesale:'Type the minimum order. Sheets and time scale up from your run.'
+};
+
+/* ---------- math (same formulas as the old calculator) ---------- */
 function pt(v){
   v=String(v==null?'':v).trim(); if(!v) return 0;
   if(v.indexOf(':')<0){var n=parseFloat(v);return isFinite(n)?n:0}
@@ -191,113 +209,74 @@ function pt(v){
   return 0;
 }
 function nn(v){var n=parseFloat(v);return isFinite(n)?n:0}
-var TYPES=['cut','engrave','score','color','mug'];
-function calc(s,p,mode,qty){
-  var rate=nn(s.rate), att=nn(s.attended)/100, d=nn(p.defect)/100, wp=nn(s.wearPct)/100;
-  var sh=null; (s.sheets||[]).forEach(function(x){if(x.id===p.sheetType) sh=x});
-  var miss=[]; if(!sh) miss.push('sheet type');
-  var price=sh?nn(sh.price):0, extras=nn(p.extras);
-  var j={}, Q=0, sheetsFrac=0, sheetsCeil=0, machMins={}, hands=0;
-  if(mode==='single'){
-    j=p.single||{}; Q=1; sheetsFrac=nn(j.sheets); sheetsCeil=sheetsFrac;
-    if(!(sheetsFrac>0)) miss.push('sheets used (single setup)');
-    TYPES.forEach(function(t){machMins[t]=pt(j[t])});
-    hands=pt(j.setup)+pt(j.load)+pt(j.finish)+pt(j.assembly)+pt(j.pack);
-  } else if(mode==='bulk'){
-    j=p.bulk||{}; Q=nn(qty); var pps=nn(j.ppS);
-    if(!(pps>0)) miss.push('pieces per sheet (bulk setup)');
-    if(!(Q>0)) miss.push('quantity');
-    sheetsFrac=pps>0?Q/pps:0; sheetsCeil=Math.ceil(sheetsFrac-1e-9);
-    TYPES.forEach(function(t){machMins[t]=sheetsFrac*pt(j[t])});
-    hands=pt(j.setup)+sheetsCeil*pt(j.load)+Q*(pt(j.finish)+pt(j.assembly)+pt(j.pack));
-  } else { miss.push('single or bulk setup') }
-  var machTotal=0; TYPES.forEach(function(t){machTotal+=machMins[t]||0});
-  if(!miss.length && machTotal+hands<=0) miss.push('laser or hands-on time');
-  if(miss.length) return {ok:false,missing:miss};
-  var machHrs=machTotal/60, wearTot=0;
-  wearTot+=wp*machHrs*rate*att;
-  var matTot=sheetsCeil*price+(mode==='bulk'?Q:1)*extras;
-  var hrsTot=machHrs*att+hands/60;
-  var f=1+d; matTot*=f; wearTot*=f; hrsTot*=f;
-  var design=(nn(p.designHrs)>0&&nn(p.lifetime)>0)?nn(p.designHrs)*rate/nn(p.lifetime):0;
-  var mat=matTot/Q, wear=wearTot/Q, labor=hrsTot*rate/Q, hpp=hrsTot/Q;
-  var fixedLabor=mode==='bulk'?(pt(j.setup)/60)*f*rate:0;
-  return {ok:true,mode:mode,Q:Q,mat:mat,wear:wear,labor:labor,design:design,
-    cost:mat+wear+labor+design,nonLabor:mat+wear+design,hpp:hpp,hrsTot:hrsTot,
-    fixedLabor:fixedLabor,sheets:sheetsCeil,pps:mode==='bulk'?nn(j.ppS):0};
+function defSettings(){return {rate:'50',reserve:'10',cardFee:'3',attended:'100',customMaterials:[]}}
+function blankCh(){return {price:'',card:false,sheets:'',qty:'',extraSetup:''}}
+function blankProduct(){
+  return {name:'',designId:'',material:'',matCustom:'',size:'',price:'',extras:'',
+    sheetsUsed:'',pieces:'',laser:'',load:'',setup:'',finish:'',assembly:'',pack:'',
+    defect:'',designHrs:'',lifetime:'',
+    ch:{single:blankCh(),bulk:blankCh(),fundraiser:blankCh(),wholesale:blankCh()}};
 }
-function roundUp(x,step){return step>0?Math.ceil(x/step-1e-9)*step:x}
-function chan(s,p,key){
-  var c=((p.ch||{})[key])||{}, mode=c.mode||'';
-  var r=calc(s,p,mode,mode==='bulk'?c.qty:1);
-  if(!r.ok) return {ok:false,missing:r.missing};
-  var fee=nn((s.fees||{})[key])/100; if(fee>=0.99) fee=0.99;
-  var rate=nn(s.rate);
-  var be=r.cost/(1-fee), beR=roundUp(be,nn(s.round));
-  var P=nn(c.price), hasP=P>0, net=P*(1-fee), profit=net-r.cost;
-  var oq=mode==='bulk'?nn(c.qty):(nn(c.qty)||1);
-  var out={ok:true,r:r,mode:mode,fee:fee,be:be,beR:beR,P:P,hasP:hasP,profit:profit,oq:oq,
-    pass:hasP&&profit>=-0.005,notes:[]};
+function compute(s,p,key){
+  var c=(p.ch&&p.ch[key])||blankCh(), miss=[];
+  var rate=nn(s.rate), att=nn(s.attended)/100, wp=nn(s.reserve)/100, d=nn(p.defect)/100;
+  var price=nn(p.price), extras=nn(p.extras), SU=nn(p.sheetsUsed), PM=nn(p.pieces), T=pt(p.laser);
+  if(!(price>0)) miss.push({k:'price',l:'Price per sheet'});
+  if(!(SU>0)) miss.push({k:'sheetsUsed',l:'Sheets used in the run'});
+  if(!(PM>0)) miss.push({k:'pieces',l:'Pieces the run makes'});
+  if(!(T>0)) miss.push({k:'laser',l:'Laser time for the run'});
+  var type=key==='single'?'single':(key==='bulk'?'bulk':'min');
+  var S=nn(c.sheets), Qin=nn(c.qty);
+  if(type==='bulk'&&!(S>0)) miss.push({k:'ch.bulk.sheets',l:'Sheets for this order'});
+  if(type==='min'&&!(Qin>0)) miss.push({k:'ch.'+key+'.qty',l:'Minimum order'});
+  if(miss.length) return {ok:false,miss:miss};
+  var q,sb,lm,loads,setup;
+  if(type==='single'){
+    sb=S>0?S:SU/PM; q=1; lm=T/PM; loads=Math.max(1,Math.ceil(sb-1e-9)); setup=pt(p.setup)+pt(c.extraSetup);
+  } else if(type==='bulk'){
+    q=Math.floor(S*PM/SU+1e-9);
+    if(q<1) return {ok:false,miss:[{k:'ch.bulk.sheets',l:'More sheets, because that many make less than one piece'}]};
+    sb=S; lm=S*T/SU; loads=Math.ceil(S-1e-9); setup=pt(p.setup);
+  } else {
+    q=Qin; var sf=q*SU/PM; sb=Math.ceil(sf-1e-9); lm=sf*T/SU; loads=sb; setup=pt(p.setup);
+  }
+  var perPiece=pt(p.finish)+pt(p.assembly)+pt(p.pack);
+  var hands=setup+loads*pt(p.load)+q*perPiece;
+  var mh=lm/60, f=1+d;
+  var matT=(sb*price+q*extras)*f, wearT=wp*mh*rate*att*f, hrsT=(mh*att+hands/60)*f;
+  var design=(nn(p.designHrs)>0&&nn(p.lifetime)>0)?nn(p.designHrs)*rate/nn(p.lifetime):0;
+  var mat=matT/q, wear=wearT/q, labor=hrsT*rate/q, hpp=hrsT/q, cost=mat+wear+labor+design;
+  var fee=c.card?nn(s.cardFee)/100:0; if(fee>=0.99) fee=0.99;
+  var P=nn(c.price), hasP=P>0, net=P*(1-fee), profit=net-cost;
+  var out={ok:true,type:type,q:q,sheets:sb,mat:mat,wear:wear,labor:labor,design:design,cost:cost,hpp:hpp,hrs:hrsT,
+    fee:fee,be:cost/(1-fee),P:P,hasP:hasP,net:net,profit:profit,pass:hasP&&profit>=-0.005,
+    eff:hpp>0?(net-mat-wear-design)/hpp:0,handsZero:hands<=0};
   if(hasP&&profit<-0.005&&rate>0){
-    var maxH=(net-r.nonLabor)/rate;
-    out.hint=maxH<=0?'Materials and wear alone use up this price.':
-      'To clear it at this price, your time must drop from '+(r.hpp*60).toFixed(1)+' to '+(maxH*60).toFixed(1)+' minutes per piece.';
+    var maxH=(net-mat-wear-design)/rate;
+    out.hint=maxH<=0?'Wood and machine reserve alone use up this price.':
+      'To clear it at this price, your time must drop from '+(hpp*60).toFixed(1)+' to '+(maxH*60).toFixed(1)+' minutes per piece.';
   }
-  if(mode==='bulk'&&hasP){
-    var variable=r.cost-r.fixedLabor/r.Q;
-    if(net>variable&&r.fixedLabor>0) out.beQty=Math.ceil(r.fixedLabor/(net-variable));
+  if(type!=='single'&&hasP){
+    var fixed=(setup/60)*f*rate, variable=cost-fixed/q;
+    if(net>variable&&fixed>0) out.beQty=Math.ceil(fixed/(net-variable));
   }
-  if(nn(c.target)>0){
-    var sp=(r.cost+nn(c.target))/(1-fee); if(nn(c.floor)>0) sp=Math.max(sp,nn(c.floor));
-    out.suggested=roundUp(sp,nn(s.round));
-  }
-  if(hasP&&nn(c.floor)>0&&P<nn(c.floor)) out.belowFloor=true;
-  if(nn(c.minQty)>0&&oq<nn(c.minQty)) out.belowMin=true;
-  if(mode==='bulk'&&hasP&&r.pps>0) out.revPerSheet=P*r.pps;
-  var alt=(mode==='single')?(nn(c.qty)>0?calc(s,p,'bulk',c.qty):null):calc(s,p,'single',1);
-  if(alt&&alt.ok) out.alt={mode:mode==='single'?'bulk':'single',cost:alt.cost};
-  out.orderTotal=P*oq;
-  if(nn(c.deposit)>0&&hasP) out.deposit=out.orderTotal*nn(c.deposit)/100;
-  out.hours=r.hpp*oq;
   return out;
 }
-</script>
 
-<script id="ui">
-(function(){
-var CH=[['retail','Retail'],['wholesale','Wholesale'],['fundraiser','Fundraiser']];
-var SETUP_FIELDS=[
-  ['Laser time',[['cut','Cutting','t'],['engrave','Engraving','t'],['score','Scoring','t'],['color','Color print','t'],['mug','Mug rotary','t']]],
-  ['Your hands-on time',[]]
-];
-function defSettings(){return {rate:'50',attended:'100',round:'0',wearPct:'',
-  sheets:[{id:'s1',name:'12x16 basswood',price:'1.75'}],
-  fees:{retail:'',wholesale:'',fundraiser:''}}}
-function blankCh(){return {mode:'',qty:'',price:'',target:'',deposit:'',lead:'',minQty:'',floor:''}}
-function blankProduct(){
-  var sid=(db&&db.settings&&db.settings.sheets[0])?db.settings.sheets[0].id:'s1';
-  return {name:'',designId:'',sheetType:sid,extras:'',designHrs:'',lifetime:'',defect:'',waitMin:'',
-    single:{sheets:'',cut:'',engrave:'',score:'',color:'',mug:'',setup:'',load:'',finish:'',assembly:'',pack:''},
-    bulk:{ppS:'',cut:'',engrave:'',score:'',color:'',mug:'',setup:'',load:'',finish:'',assembly:'',pack:''},
-    ch:{retail:blankCh(),wholesale:blankCh(),fundraiser:blankCh()}};
-}
+/* ---------- state and storage ---------- */
+var settings=defSettings(), products=[], cur=blankProduct(), curId=null, dirty=false, armed=null, armTimer=null, pending=null;
+var dbh=null, mode='local', setTimer=null, setDirty=false, loadTimer=null;
 function clone(o){return JSON.parse(JSON.stringify(o))}
 function merge(base,over){
   if(over==null||typeof over!=='object'||Array.isArray(over)) return over===undefined?base:over;
   var out=Array.isArray(base)?[]:{}, k;
   for(k in base) out[k]=base[k];
-  for(k in over) out[k]=(base&&typeof base[k]==='object'&&!Array.isArray(base[k]))?merge(base[k],over[k]):over[k];
+  for(k in over) out[k]=(base&&typeof base[k]==='object'&&base[k]!==null&&!Array.isArray(base[k]))?merge(base[k],over[k]):over[k];
   return out;
 }
-var mem=null;
-function loadDb(){try{var r=localStorage.getItem('bvPricer.v1');if(r) return JSON.parse(r)}catch(e){} return mem}
-function persist(){mem=db;try{localStorage.setItem('bvPricer.v1',JSON.stringify(db))}catch(e){}}
-var db=loadDb()||{settings:defSettings(),products:[]};
-db.settings=merge(defSettings(),db.settings||{});
-if(!Array.isArray(db.settings.sheets)||!db.settings.sheets.length) db.settings.sheets=defSettings().sheets;
-if(!Array.isArray(db.products)) db.products=[];
-var cur=blankProduct(), curId=null, armed=null, armTimer=null;
-
+var LS='bvPricer.v2';
+function localLoad(){try{var r=localStorage.getItem(LS);if(r){var o=JSON.parse(r);if(o&&o.settings) settings=merge(defSettings(),o.settings);if(o&&Array.isArray(o.products)) products=o.products}}catch(e){}}
+function localSave(){try{localStorage.setItem(LS,JSON.stringify({settings:settings,products:products}))}catch(e){}}
 function el(id){return document.getElementById(id)}
 function $(x){return (x<0?'-':'')+'$'+Math.abs(x).toFixed(2)}
 function hm(h){var m=Math.round(h*60);return m<60?m+' min':Math.floor(m/60)+' h '+(m%60)+' min'}
@@ -306,66 +285,74 @@ function getPath(o,p){return p.split('.').reduce(function(a,k){return a==null?un
 function setPath(o,p,v){var a=p.split('.'),last=a.pop();var t=a.reduce(function(x,k){return x[k]},o);t[last]=v}
 function uid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function msg(t){el('msg').textContent=t||''}
+function where(){
+  el('where').textContent=mode==='db'?'Saved to your account, so your products follow you to every device.':'Saved in this browser on this device only. Use Backup to move them.';
+}
 
-/* ---------- build static pieces ---------- */
-function fld(prefix,key,label,t,extra){
-  return '<label>'+label+'<input data-k="'+prefix+'.'+key+'" '+(t?'type="text" data-t="1" placeholder="mm:ss or minutes"':'type="number" step="'+(extra||'1')+'" min="0"')+'>'+(t?'<span class="pm"></span>':'')+'</label>';
+function persistSettings(){
+  localSave();
+  if(mode==='db'&&dbh){
+    setDirty=true; clearTimeout(setTimer);
+    setTimer=setTimeout(function(){
+      dbh.doc('settings/main').set(clone(settings)).then(function(){setDirty=false},function(e){setDirty=false;msg('Settings were not saved to your account: '+((e&&e.message)||'try again'))});
+    },500);
+  }
 }
-function buildSetups(){
-  var s='<section class="panel"><h2>Single item setup</h2><p class="hint" style="margin:0 0 12px">Making one piece by itself. Enter the time for that one piece.</p><div class="grid">'+
-    fld('single','sheets','Sheets used (a share counts)',false,'0.05')+'</div><h3>Laser time for the one piece</h3><div class="grid">'+
-    fld('single','cut','Cutting',true)+fld('single','engrave','Engraving',true)+fld('single','score','Scoring',true)+fld('single','color','Color print',true)+fld('single','mug','Mug rotary',true)+
-    '</div><h3>Your hands-on time for the one piece</h3><div class="grid">'+
-    fld('single','setup','Setup',true)+fld('single','load','Load and unload',true)+fld('single','finish','Finishing, sanding, sealing',true)+fld('single','assembly','Assembly',true)+fld('single','pack','Packing',true)+'</div></section>';
-  s+='<section class="panel"><h2>Bulk order setup</h2><p class="hint" style="margin:0 0 12px">Setup is counted once. Laser time is for one full sheet. The quantity is set in each channel below.</p><div class="grid">'+
-    fld('bulk','ppS','Pieces per sheet',false,'0.05')+'</div><h3>Laser time for one full sheet</h3><div class="grid">'+
-    fld('bulk','cut','Cutting',true)+fld('bulk','engrave','Engraving',true)+fld('bulk','score','Scoring',true)+fld('bulk','color','Color print',true)+fld('bulk','mug','Mug rotary',true)+
-    '</div><h3>Your hands-on time</h3><div class="grid">'+
-    fld('bulk','setup','Setup, once per order (programming, layout)',true)+fld('bulk','load','Load and unload, per sheet',true)+fld('bulk','finish','Finishing, per piece',true)+fld('bulk','assembly','Assembly, per piece',true)+fld('bulk','pack','Packing, per piece',true)+'</div></section>';
-  el('setups').innerHTML=s;
+function persistProduct(obj){
+  var i=-1; products.forEach(function(x,n){if(x.id===obj.id) i=n});
+  if(i<0) products.push(obj); else products[i]=obj;
+  localSave();
+  if(mode==='db'&&dbh) return dbh.collection('products').doc(obj.id).set(clone(obj));
+  return Promise.resolve();
 }
-function chCard(key,label){
-  var k='ch.'+key+'.';
-  return '<section class="panel" id="card-'+key+'"><h2>'+label+'</h2><div class="grid">'+
-  '<label>Setup<select data-k="'+k+'mode"><option value="">Choose setup</option><option value="single">Single item</option><option value="bulk">Bulk order</option></select></label>'+
-  '<label>Quantity<input data-k="'+k+'qty" type="number" min="0" step="1"></label>'+
-  '<label>Your price per piece ($)<input data-k="'+k+'price" type="number" min="0" step="0.25"></label>'+
-  '<label>Target profit per piece ($, optional)<input data-k="'+k+'target" type="number" min="0" step="0.25"></label>'+
-  '<label>Deposit % (optional)<input data-k="'+k+'deposit" type="number" min="0" max="100" step="5"></label>'+
-  '<label>Lead time<input data-k="'+k+'lead" type="text" placeholder="2 weeks"></label>'+
-  '<label>Minimum quantity (optional)<input data-k="'+k+'minQty" type="number" min="0" step="1"></label>'+
-  '<label>Price floor ($, optional)<input data-k="'+k+'floor" type="number" min="0" step="0.25"></label>'+
-  '</div><div id="res-'+key+'"></div></section>';
+function removeProduct(id){
+  products=products.filter(function(x){return x.id!==id});
+  localSave();
+  if(mode==='db'&&dbh) dbh.collection('products').doc(id).delete().catch(function(){msg('Could not delete it from your account.')});
 }
-function buildChannels(){el('chs').innerHTML=CH.map(function(c){return chCard(c[0],c[1])}).join('')}
-
-/* ---------- settings UI ---------- */
-function renderSheetRows(){
-  var S=db.settings.sheets;
-  el('sheetRows').innerHTML=S.map(function(x,i){
-    return '<div class="sheetrow"><label>Name<input data-sheet="name" data-i="'+i+'" type="text" value="'+esc(x.name)+'"></label>'+
-    '<label>Price ($)<input data-sheet="price" data-i="'+i+'" type="number" step="0.05" min="0" value="'+esc(x.price)+'"></label>'+
-    '<button class="btn" type="button" data-act="rm-sheet" data-i="'+i+'"'+(S.length<2?' disabled':'')+'>Remove</button></div>';
-  }).join('');
-}
-function writeSettings(){
-  document.querySelectorAll('[data-s]').forEach(function(i){var v=getPath(db.settings,i.dataset.s);i.value=v==null?'':v});
-  renderSheetRows();
-}
-function fillSheetSelect(){
-  var sel=el('sheetSelect'), S=db.settings.sheets;
-  sel.innerHTML=S.map(function(x){return '<option value="'+esc(x.id)+'">'+esc(x.name||'Unnamed')+' ($'+nn(x.price).toFixed(2)+')</option>'}).join('');
-  var ok=S.some(function(x){return x.id===cur.sheetType});
-  if(!ok) cur.sheetType=S[0].id;
-  sel.value=cur.sheetType;
+function connectDb(){
+  try{
+    if(!(window.claude&&window.claude.use)){where();return}
+    window.claude.use('db').then(function(db){
+      if(!db){where();return}
+      dbh=db; mode='db'; where();
+      loadTimer=setTimeout(function(){el('where').textContent='Your saved products cannot be reached yet. What you see may be out of date.'},10000);
+      db.doc('settings/main').onSnapshot(function(snap){
+        if(snap.exists&&!setDirty){
+          var next=merge(defSettings(),clone(snap.data()));
+          if(JSON.stringify(next)!==JSON.stringify(settings)){settings=next;localSave();writeSettings();fillMaterials();refresh()}
+        }
+      },function(){});
+      db.collection('products').onSnapshot(function(snap){
+        if(!snap.metadata.fromCache){clearTimeout(loadTimer);where()}
+        products=snap.docs.map(function(d){return clone(d.data())});
+        localSave();renderSaved();
+      },function(){clearTimeout(loadTimer);mode='local';where()});
+    },function(){where()});
+  }catch(e){where()}
 }
 
 /* ---------- form <-> state ---------- */
+function allMaterials(){
+  var list=BASE_MATERIALS.concat(settings.customMaterials||[]);
+  if(cur.material&&cur.material!=='__other'&&list.indexOf(cur.material)<0) list.push(cur.material);
+  return list;
+}
+function fillMaterials(){
+  var sel=el('k-material'), list=allMaterials();
+  sel.innerHTML='<option value="">Choose a material</option>'+list.map(function(m){return '<option value="'+esc(m)+'">'+esc(m)+'</option>'}).join('')+'<option value="__other">Other (add my own)</option>';
+  sel.value=cur.material||'';
+  el('customRow').hidden=cur.material!=='__other';
+}
+function writeSettings(){
+  document.querySelectorAll('[data-s]').forEach(function(i){var v=settings[i.dataset.s];i.value=v==null?'':v});
+}
 function writeForm(){
-  fillSheetSelect();
+  fillMaterials();
   document.querySelectorAll('[data-k]').forEach(function(i){
-    if(i.id==='sheetSelect') return;
-    var v=getPath(cur,i.dataset.k); i.value=v==null?'':v;
+    if(i.id==='k-material') return;
+    var v=getPath(cur,i.dataset.k);
+    if(i.type==='checkbox') i.checked=!!v; else i.value=v==null?'':v;
   });
 }
 function updateParsed(){
@@ -375,151 +362,189 @@ function updateParsed(){
   });
 }
 
+/* ---------- channel cards ---------- */
+function fld(k,label,step,ph){return '<label>'+label+'<input id="k-'+k.replace(/\./g,'-')+'" data-k="'+k+'" type="number" min="0" step="'+step+'"'+(ph?' placeholder="'+ph+'"':'')+'></label>'}
+function chCard(key,label,type){
+  var k='ch.'+key+'.';
+  var h='<section class="panel" id="card-'+key+'"><h2>'+label+'</h2><p class="hint">'+HINT[key]+'</p><div class="grid">';
+  if(type==='bulk') h+=fld(k+'sheets','Sheets for this order','0.5');
+  if(type==='min') h+=fld(k+'qty','Minimum order (pieces)','1');
+  if(type==='single'){
+    h+=fld(k+'sheets','Sheets for one piece (optional)','0.05','leave blank to use your run');
+    h+='<label>Extra setup minutes (optional)<input id="k-ch-single-extraSetup" data-k="ch.single.extraSetup" type="text" data-t="1"><span class="pm"></span></label>';
+  }
+  h+=fld(k+'price','Your price per piece ($)','0.25');
+  h+='<label class="chk"><input type="checkbox" id="k-ch-'+key+'-card" data-k="'+k+'card"> Paid by card (fee)</label>';
+  h+='</div><div id="res-'+key+'"></div></section>';
+  return h;
+}
+
 /* ---------- results ---------- */
 function row(l,v){return '<tr><td>'+l+'</td><td>'+v+'</td></tr>'}
 function resHtml(key,x){
-  if(!x.ok) return '<div class="check none" style="margin-top:12px">Still needed: '+x.missing.join(', ')+'.</div>';
-  var r=x.r, rate=db.settings.rate||'0';
-  var h='<table>'+row('Materials',$(r.mat))+row('Machine reserve',$(r.wear))+
-    row('Your labor ('+(r.hpp*60).toFixed(1)+' min)',$(r.labor))+row('Design share',$(r.design))+
-    '<tr class="total"><td>Cost per piece</td><td>'+$(r.cost)+'</td></tr></table>';
-  h+='<div class="be"><small>Break-even price'+(x.fee>0?' after '+(x.fee*100).toFixed(1).replace(/\.0$/,'')+'% fee':'')+'</small><b>'+$(x.beR)+'</b></div>';
+  var rate=settings.rate||'0';
+  if(!x.ok) return '<div class="check need">Still needed: '+x.miss.map(function(m){return esc(m.l)}).join(', ')+'.</div>';
+  var h='<table>'+row('Wood and extras',$(x.mat))+row('Machine reserve',$(x.wear))+
+    row('Your labor ('+(x.hpp*60).toFixed(1)+' min)',$(x.labor))+(x.design>0.0005?row('Design share',$(x.design)):'')+
+    '<tr class="total"><td>Cost per piece</td><td>'+$(x.cost)+'</td></tr></table>';
+  h+='<div class="be"><small>Break-even price'+(x.fee>0?' after the '+(x.fee*100).toFixed(1).replace(/\.0$/,'')+'% card fee':'')+'</small><b>'+$(x.be)+'</b></div>';
   if(!x.hasP){
     h+='<div class="check none">Enter your price to see profit above $'+esc(rate)+' per hour.</div>';
   } else {
     h+='<div class="check '+(x.pass?'pass':'fail')+'">'+(x.pass?'Clears $'+esc(rate)+' per hour':'Below $'+esc(rate)+' per hour')+
-      '<span class="num">'+$(x.profit)+' per piece</span><span class="note">'+$(x.profit*x.oq)+' on '+x.oq+' piece'+(x.oq===1?'':'s')+'</span></div>';
-  }
-  if(x.hasP){
-    var q=x.oq, feeD=x.P*x.fee;
-    var lines=[['Your pay',r.labor,1],['Design time',r.design,0],['Materials repaid',r.mat,1],['Machine reserve',r.wear,0],['Fees',feeD,0]];
+      '<span class="num">'+$(x.profit)+' per piece</span><span class="note">'+$(x.profit*x.q)+' on '+x.q+' piece'+(x.q===1?'':'s')+' · you earn about '+$(x.eff)+' per hour</span></div>';
+    var q=x.q, feeD=x.P*x.fee;
+    var lines=[['Your pay',x.labor,1],['Design time',x.design,0],['Wood and extras',x.mat,1],['Machine reserve',x.wear,0],['Card fee',feeD,0]];
     h+='<h3>Where the money goes</h3><table class="split"><tr><th></th><th>Per piece</th><th>Order of '+q+'</th></tr>';
     lines.forEach(function(L){if(L[2]||L[1]>0.0005) h+='<tr><td>'+L[0]+'</td><td>'+$(L[1])+'</td><td>'+$(L[1]*q)+'</td></tr>'});
     h+='<tr class="'+(x.pass?'good':'bad')+'"><td>'+(x.pass?'Profit left over':'Shortfall')+'</td><td>'+$(x.profit)+'</td><td>'+$(x.profit*q)+'</td></tr>'+
        '<tr class="total"><td>You take in</td><td>'+$(x.P)+'</td><td>'+$(x.P*q)+'</td></tr></table>';
-    if(r.wear>0.0005) h+='<div class="reserve">Move '+$(r.wear*q)+' to your machine reserve for this order ('+$(r.wear)+' per piece).</div>';
-    else h+='<p class="hint">Enter the reserve % in Settings to see what to move to your reserve.</p>';
+    if(x.wear>0.0005) h+='<div class="reserve">Move '+$(x.wear*q)+' to your machine reserve for this order ('+$(x.wear)+' per piece).</div>';
   }
   var n=[];
+  if(x.handsZero) n.push('<li class="w">No hands-on time is entered, so your time counts as 0 for setup, loading, assembly and packing.</li>');
   if(x.hint) n.push('<li class="w">'+x.hint+'</li>');
-  if(x.belowFloor) n.push('<li class="w">Price is below your floor.</li>');
-  if(x.belowMin) n.push('<li class="w">Quantity is below your minimum.</li>');
-  if(x.suggested!=null) n.push('<li>Price for your target profit: '+$(x.suggested)+'</li>');
-  if(x.beQty) n.push('<li>Break-even quantity at your price: '+x.beQty+'</li>');
-  if(x.revPerSheet) n.push('<li>Revenue per sheet: '+$(x.revPerSheet)+'</li>');
-  if(x.alt) n.push('<li>'+(x.alt.mode==='single'?'Single item':'Bulk at this quantity')+' would cost '+$(x.alt.cost)+' per piece.</li>');
-  if(x.hasP){
-    n.push('<li>Order total: '+$(x.orderTotal)+' · Time to produce: '+hm(x.hours)+'</li>');
-    if(x.deposit!=null) n.push('<li>Deposit due: '+$(x.deposit)+' · Balance: '+$(x.orderTotal-x.deposit)+'</li>');
-  }
-  var lead=((cur.ch||{})[key]||{}).lead; if(lead) n.push('<li>Lead time: '+esc(lead)+'</li>');
-  if(cur.waitMin) n.push('<li>Wait time per batch (not billed): '+esc(cur.waitMin)+'</li>');
-  if(n.length) h+='<ul class="notes">'+n.join('')+'</ul>';
+  if(x.beQty) n.push('<li>Smallest order that clears your rate at this price: '+x.beQty+' pieces</li>');
+  n.push('<li>'+x.q+' piece'+(x.q===1?'':'s')+' · '+(x.type==='single'&&!(nn(((cur.ch||{}).single||{}).sheets)>0)?'about '+x.sheets.toFixed(2)+' of a sheet':Math.round(x.sheets*100)/100+' sheet'+(x.sheets===1?'':'s'))+' · '+hm(x.hrs)+' of your time</li>');
+  if(x.hasP) n.push('<li>Order total: '+$(x.P*x.q)+'</li>');
+  h+='<ul class="notes">'+n.join('')+'</ul>';
   return h;
 }
+function started(){
+  var p=cur; return ['name','price','sheetsUsed','pieces','laser','load','setup','assembly','pack'].some(function(k){return String(p[k]||'').trim()!==''});
+}
 function renderChannels(){
-  CH.forEach(function(c){el('res-'+c[0]).innerHTML=resHtml(c[0],chan(db.settings,cur,c[0]))});
+  var need={};
+  CH.forEach(function(c){
+    var x=compute(settings,cur,c[0]);
+    el('res-'+c[0]).innerHTML=resHtml(c[0],x);
+    if(!x.ok) x.miss.forEach(function(m){need[m.k]=1});
+  });
+  document.querySelectorAll('[data-k]').forEach(function(i){
+    var k=i.dataset.k, shared=['price','sheetsUsed','pieces','laser'].indexOf(k)>=0;
+    i.classList.toggle('need',!!(need[k]&&shared&&started()));
+  });
+}
+function renderDerived(){
+  var SU=nn(cur.sheetsUsed), PM=nn(cur.pieces), price=nn(cur.price), t='';
+  if(SU>0&&PM>0){
+    t=(SU/PM).toFixed(3)+' sheets per piece · '+(PM/SU).toFixed(2)+' pieces per sheet';
+    if(price>0) t+=' · wood per piece '+$(SU*price/PM);
+  }
+  el('derived').textContent=t;
 }
 
 /* ---------- saved list ---------- */
 function chipHtml(label,x){
-  if(!x.ok) return '<span class="chip none">'+label+': not set up</span>';
-  if(!x.hasP) return '<span class="chip none">'+label+': break-even '+$(x.beR)+'</span>';
-  return '<span class="chip '+(x.pass?'pass':'fail')+'">'+label+': break-even '+$(x.beR)+' · profit '+$(x.profit)+' per piece</span>';
+  if(!x.ok) return '';
+  if(!x.hasP) return '<span class="chip">'+label+': break-even '+$(x.be)+'</span>';
+  return '<span class="chip '+(x.pass?'pass':'fail')+'">'+label+': break-even '+$(x.be)+' · profit '+$(x.profit)+' per piece</span>';
 }
 function renderSaved(){
   var L=el('savedList');
-  if(!db.products.length){
-    L.innerHTML='<p class="empty">Nothing saved yet. Fill in a product below and press Save product, and it will appear here with its break-even price and profit for each channel.</p>';
+  if(!products.length){
+    L.innerHTML='<p class="empty">Nothing saved yet. Fill in a product below and press Save product. It will show up here with its break-even price for each channel.</p>';
     L.style.display='block'; return;
   }
   L.style.display='';
-  var list=db.products.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0)});
+  var list=products.slice().sort(function(a,b){return (b.updated||0)-(a.updated||0)});
   L.innerHTML=list.map(function(p){
-    var sh=''; db.settings.sheets.forEach(function(x){if(x.id===p.sheetType) sh=x.name});
-    var chips=CH.map(function(c){return chipHtml(c[1],chan(db.settings,p,c[0]))}).join('');
+    var pp=merge(blankProduct(),p);
+    var chips=CH.map(function(c){return chipHtml(c[1],compute(settings,pp,c[0]))}).join('');
+    var sub=[p.designId,p.material].filter(Boolean).map(esc).join(' · ');
     var del=armed===p.id?'<button class="btn danger" type="button" data-act="confirm-del" data-id="'+p.id+'">Confirm delete</button>':
       '<button class="btn" type="button" data-act="del" data-id="'+p.id+'">Delete</button>';
-    return '<div class="sp"><div><b>'+esc(p.name||'Untitled')+'</b><br><small>'+esc(p.designId||'')+(p.designId&&sh?' · ':'')+esc(sh)+'</small></div>'+chips+
+    return '<div class="sp"><div><b>'+esc(p.name||'Untitled')+'</b><br><small>'+sub+'</small></div>'+chips+
       '<div class="btns"><button class="btn primary" type="button" data-act="open" data-id="'+p.id+'">Open</button>'+del+'</div></div>';
   }).join('');
 }
 
-function refresh(){updateParsed();renderChannels()}
-function renderAll(){writeSettings();fillSheetSelect();writeForm();renderSaved();refresh()}
+function refresh(){updateParsed();renderDerived();renderChannels()}
+function renderAll(){writeSettings();writeForm();renderSaved();refresh()}
 
 /* ---------- events ---------- */
 function onInput(e){
   var t=e.target;
-  if(t.dataset&&t.dataset.k){
-    if(t.id==='sheetSelect'){cur.sheetType=t.value}else{setPath(cur,t.dataset.k,t.value)}
-    msg('Changes not saved yet.');
-  } else if(t.dataset&&t.dataset.s){
-    setPath(db.settings,t.dataset.s,t.value);persist();renderSaved();
-  } else if(t.dataset&&t.dataset.sheet){
-    db.settings.sheets[+t.dataset.i][t.dataset.sheet]=t.value;persist();
-    var keep=cur.sheetType;fillSheetSelect();cur.sheetType=keep;el('sheetSelect').value=keep;renderSaved();
+  if(!t.dataset) return;
+  if(t.dataset.k){
+    if(t.id==='k-material'){cur.material=t.value;el('customRow').hidden=t.value!=='__other'}
+    else setPath(cur,t.dataset.k,t.type==='checkbox'?t.checked:t.value);
+    dirty=true; msg('Changes not saved yet.');
+  } else if(t.dataset.s){
+    settings[t.dataset.s]=t.value; persistSettings(); renderSaved();
   } else return;
   refresh();
 }
 document.addEventListener('input',onInput);
 document.addEventListener('change',onInput);
+function guard(fn){
+  if(!dirty){fn();return}
+  pending=fn; el('discard').hidden=false;
+}
+el('btnDiscard').addEventListener('click',function(){var f=pending;pending=null;el('discard').hidden=true;dirty=false;if(f) f()});
+el('btnKeep').addEventListener('click',function(){pending=null;el('discard').hidden=true});
 document.addEventListener('click',function(e){
   var b=e.target.closest?e.target.closest('[data-act]'):null; if(!b) return;
   var a=b.dataset.act, id=b.dataset.id;
-  if(a==='add-sheet'){
-    db.settings.sheets.push({id:'s'+Date.now().toString(36),name:'',price:''});persist();renderSheetRows();fillSheetSelect();
-  } else if(a==='rm-sheet'){
-    var i=+b.dataset.i; if(db.settings.sheets.length>1){db.settings.sheets.splice(i,1);persist();renderSheetRows();fillSheetSelect();renderSaved();refresh()}
-  } else if(a==='open'){
-    var p=db.products.filter(function(x){return x.id===id})[0];
-    if(p){cur=merge(blankProduct(),clone(p));curId=id;writeForm();refresh();msg('Opened '+(p.name||'product')+'.');window.scrollTo({top:el('setups').offsetTop-80,behavior:'smooth'})}
+  if(a==='open'){
+    var p=products.filter(function(x){return x.id===id})[0];
+    if(p) guard(function(){cur=merge(blankProduct(),clone(p));curId=id;dirty=false;writeForm();refresh();msg('Opened '+(p.name||'product')+'.');window.scrollTo({top:el('k-name').offsetTop-80,behavior:'smooth'})});
   } else if(a==='del'){
     armed=id;clearTimeout(armTimer);armTimer=setTimeout(function(){armed=null;renderSaved()},4000);renderSaved();
   } else if(a==='confirm-del'){
-    db.products=db.products.filter(function(x){return x.id!==id});if(curId===id) curId=null;armed=null;persist();renderSaved();msg('Deleted.');
+    removeProduct(id);if(curId===id) curId=null;armed=null;renderSaved();msg('Deleted.');
   }
 });
-el('btnNew').addEventListener('click',function(){cur=blankProduct();curId=null;writeForm();refresh();msg('New blank product.')});
-el('btnExample').addEventListener('click',function(){
-  cur=blankProduct();curId=null;
-  cur.name='Ornament example';
-  cur.bulk.ppS='12';cur.bulk.cut='1:02:49';cur.bulk.setup='150';cur.bulk.load='2';
-  var f=cur.ch.fundraiser;f.mode='bulk';f.qty='100';f.price='6.5';f.deposit='50';f.lead='2 weeks';f.floor='5';f.minQty='100';
-  writeForm();refresh();msg('Example loaded. The sheet time is Studio\'s total, entered under Cutting.');
+el('btnNew').addEventListener('click',function(){
+  guard(function(){cur=blankProduct();curId=null;dirty=false;writeForm();refresh();msg('New blank product.')});
+});
+el('btnAddMat').addEventListener('click',function(){
+  var n=String(cur.matCustom||'').trim(); if(!n){msg('Type a material name first.');return}
+  settings.customMaterials=settings.customMaterials||[];
+  if(BASE_MATERIALS.concat(settings.customMaterials).indexOf(n)<0) settings.customMaterials.push(n);
+  cur.material=n;cur.matCustom='';dirty=true;persistSettings();fillMaterials();el('k-matCustom').value='';refresh();msg('Added '+n+' to the list.');
 });
 function save(asCopy){
   if(!String(cur.name).trim()){msg('Add a product name first.');return}
-  cur.updated=Date.now();
+  var obj=clone(cur); obj.updated=Date.now();
+  if(obj.material==='__other') obj.material='';
   if(asCopy||!curId){
-    if(asCopy&&db.products.some(function(x){return x.name===cur.name})) cur.name=cur.name+' (copy)';
-    curId=uid();cur.id=curId;db.products.push(clone(cur));
-  } else {
-    cur.id=curId;
-    var idx=-1;db.products.forEach(function(x,i){if(x.id===curId) idx=i});
-    if(idx<0) db.products.push(clone(cur)); else db.products[idx]=clone(cur);
-  }
-  persist();renderSaved();writeForm();msg('Saved.');
+    if(asCopy&&products.some(function(x){return x.name===obj.name})) obj.name=obj.name+' (copy)';
+    obj.id=uid();curId=obj.id;cur.name=obj.name;
+  } else obj.id=curId;
+  persistProduct(obj).then(function(){dirty=false;renderSaved();msg('Saved.')},function(err){msg('Saved here, but not to your account: '+((err&&err.message)||'try again'));renderSaved()});
+  renderSaved();
 }
 el('btnSave').addEventListener('click',function(){save(false)});
 el('btnCopy').addEventListener('click',function(){save(true)});
-el('btnShowBk').addEventListener('click',function(){var t=el('bk');t.value=JSON.stringify(db);t.focus();t.select()});
-el('btnCopyBk').addEventListener('click',function(){
-  var t=el('bk');if(!t.value) t.value=JSON.stringify(db);t.focus();t.select();
-  try{navigator.clipboard.writeText(t.value).then(function(){msg('Copied.')},function(){msg('Press copy on your keyboard to copy the selected text.')})}
-  catch(e){msg('Press copy on your keyboard to copy the selected text.')}
+el('btnXls').addEventListener('click',function(){
+  var rows=[['Product','Channel','Pieces','Your price','Break-even','Profit per piece','Profit on order','Effective $ per hour','Sheets','Your hours']];
+  CH.forEach(function(c){
+    var x=compute(settings,cur,c[0]); if(!x.ok) return;
+    rows.push([cur.name||'',c[1],x.q,x.hasP?x.P.toFixed(2):'',x.be.toFixed(2),x.hasP?x.profit.toFixed(2):'',x.hasP?(x.profit*x.q).toFixed(2):'',x.hasP?x.eff.toFixed(2):'',(Math.round(x.sheets*100)/100),(x.hrs).toFixed(2)]);
+  });
+  if(rows.length<2){msg('Nothing to copy yet. Fill in the product and a channel first.');return}
+  var text=rows.map(function(r){return r.join('\t')}).join('\n'), t=el('bk');
+  function fallback(){t.value=text;t.focus();t.select();msg('Press copy on your keyboard to copy the selected rows.')}
+  try{navigator.clipboard.writeText(text).then(function(){msg('Copied. Paste into Excel.')},fallback)}catch(err){fallback()}
 });
+el('btnShowBk').addEventListener('click',function(){var t=el('bk');t.value=JSON.stringify({settings:settings,products:products});t.focus();t.select()});
 el('btnRestore').addEventListener('click',function(){
   try{
     var o=JSON.parse(el('bk').value);
     if(!o||!Array.isArray(o.products)||!o.settings) throw new Error('bad');
-    db={settings:merge(defSettings(),o.settings),products:o.products};
-    if(!db.settings.sheets||!db.settings.sheets.length) db.settings.sheets=defSettings().sheets;
-    persist();cur=blankProduct();curId=null;renderAll();msg('Restored '+db.products.length+' product'+(db.products.length===1?'':'s')+'.');
-  }catch(e){msg('That text is not a valid backup.')}
+    settings=merge(defSettings(),o.settings); products=o.products;
+    localSave(); persistSettings();
+    if(mode==='db'&&dbh) products.forEach(function(p){if(p&&p.id) dbh.collection('products').doc(p.id).set(clone(p)).catch(function(){})});
+    cur=blankProduct();curId=null;dirty=false;renderAll();msg('Restored '+products.length+' product'+(products.length===1?'':'s')+'.');
+  }catch(err){msg('That text is not a valid backup.')}
 });
 
-buildSetups();buildChannels();renderAll();
+el('chs').innerHTML=CH.map(function(c){return chCard(c[0],c[1],c[2])}).join('');
+localLoad();
+renderAll();
+where();
+connectDb();
 })();
 </script>
 </body>
