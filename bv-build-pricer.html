@@ -404,7 +404,7 @@ function resHtml(key,x){
     lines.forEach(function(L){if(L[2]||L[1]>0.0005) h+='<tr><td>'+L[0]+'</td><td>'+$(L[1])+'</td><td>'+$(L[1]*q)+'</td></tr>'});
     h+='<tr class="'+(x.pass?'good':'bad')+'"><td>'+(x.pass?'Profit left over':'Shortfall')+'</td><td>'+$(x.profit)+'</td><td>'+$(x.profit*q)+'</td></tr>'+
        '<tr class="total"><td>You take in</td><td>'+$(x.P)+'</td><td>'+$(x.P*q)+'</td></tr></table>';
-    if(key==='fundraiser'){var dp=nn(settings.deposit);if(dp>0){var tot=x.P*x.q,dep=Math.min(Math.ceil(tot*dp/100),Math.ceil(tot));h+='<div class="deposit"><b>Collect up front ('+String(dp).replace(/\.0+$/,'')+'%): '+$(dep)+'</b><br>Balance due: '+$(tot-dep)+' · order total '+$(tot)+'<br><small>Based on the minimum order of '+q+'. If the final count changes, the balance changes.</small></div>'}}
+    if(key==='fundraiser'){var dp=nn(settings.deposit);if(dp>0){var tot=x.P*x.q,dep=Math.min(Math.round(tot*dp)/100,tot);h+='<div class="deposit"><b>Collect up front ('+String(dp).replace(/\.0+$/,'')+'%): '+$(dep)+'</b><br>Balance due: '+$(tot-dep)+' · order total '+$(tot)+'<br><small>Based on the minimum order of '+q+'. If the final count changes, the balance changes.</small></div>'}}
     if(x.wear>0.0005) h+='<div class="reserve">Move '+$(x.wear*q)+' to your machine reserve for this order ('+$(x.wear)+' per piece).</div>';
   }
   var n=[];
