@@ -86,6 +86,7 @@ ul.notes li.w{color:var(--warn)}
 .split th+th{font-family:var(--sans)}
 .split tr.good td{color:var(--good);font-weight:700}
 .split tr.bad td{color:var(--bad);font-weight:700}
+.deposit{margin-top:10px;border:1px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:14px}.deposit b{font-family:inherit}
 .reserve{margin-top:10px;border:1px dashed var(--accent);border-radius:6px;padding:8px 12px;font-size:13px}
 .derived{font-family:var(--mono);font-size:13px;color:var(--accent);margin:12px 0 0;min-height:18px}
 #msg,#where{font-size:13px;color:var(--muted)}
@@ -118,6 +119,7 @@ ul.notes li.w{color:var(--warn)}
       <label>Machine reserve (% of machine-time cost)<input id="s-reserve" data-s="reserve" type="text" inputmode="decimal" step="1" min="0"></label>
       <label>Card fee (%)<input id="s-cardFee" data-s="cardFee" type="text" inputmode="decimal" step="0.5" min="0"></label>
       <label>Time you are tied to the machine (%)<input id="s-attended" data-s="attended" type="text" inputmode="decimal" step="5" min="0" max="100"></label>
+      <label>Deposit to collect up front, fundraiser (%)<input id="s-deposit" data-s="deposit" type="text" inputmode="decimal" step="5" min="0" max="100"></label>
     </div>
   </section>
 
@@ -212,7 +214,7 @@ function pt(v){
 }
 function cleanNum(v){v=String(v==null?'':v).replace(/[$\s]/g,'');if(/^\d*,\d{1,2}$/.test(v)) v=v.replace(',','.'); else v=v.replace(/,/g,'');return v}
 function nn(v){var n=parseFloat(cleanNum(v));return isFinite(n)?n:0}
-function defSettings(){return {rate:'50',reserve:'10',cardFee:'3',attended:'100',customMaterials:[]}}
+function defSettings(){return {rate:'50',reserve:'10',cardFee:'3',attended:'100',deposit:'50',customMaterials:[]}}
 function blankCh(){return {price:'',card:false,sheets:'',qty:'',extraSetup:''}}
 function blankProduct(){
   return {name:'',designId:'',material:'',matCustom:'',size:'',price:'',extras:'',
@@ -402,6 +404,7 @@ function resHtml(key,x){
     lines.forEach(function(L){if(L[2]||L[1]>0.0005) h+='<tr><td>'+L[0]+'</td><td>'+$(L[1])+'</td><td>'+$(L[1]*q)+'</td></tr>'});
     h+='<tr class="'+(x.pass?'good':'bad')+'"><td>'+(x.pass?'Profit left over':'Shortfall')+'</td><td>'+$(x.profit)+'</td><td>'+$(x.profit*q)+'</td></tr>'+
        '<tr class="total"><td>You take in</td><td>'+$(x.P)+'</td><td>'+$(x.P*q)+'</td></tr></table>';
+    if(key==='fundraiser'){var dp=nn(settings.deposit);if(dp>0){var tot=x.P*x.q,dep=Math.min(Math.ceil(tot*dp/100),Math.ceil(tot));h+='<div class="deposit"><b>Collect up front ('+String(dp).replace(/\.0+$/,'')+'%): '+$(dep)+'</b><br>Balance due: '+$(tot-dep)+' · order total '+$(tot)+'<br><small>Based on the minimum order of '+q+'. If the final count changes, the balance changes.</small></div>'}}
     if(x.wear>0.0005) h+='<div class="reserve">Move '+$(x.wear*q)+' to your machine reserve for this order ('+$(x.wear)+' per piece).</div>';
   }
   var n=[];
